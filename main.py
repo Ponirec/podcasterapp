@@ -7,6 +7,13 @@ from pathlib import Path
 from typing import Dict, Any, Tuple
 import time
 
+# audioop estándar (Python <= 3.12) o audioop-lts (Python 3.13+ en Render)
+try:
+    import audioop  # stdlib
+except ImportError:  # en Render con Python 3.13
+    import audioop_lts as audioop  # type: ignore[import]
+
+
 from pydub import AudioSegment, effects
 
 
