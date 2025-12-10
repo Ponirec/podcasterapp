@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Limpia tu audio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <h1>Limpia tu audio</h1>
+        <p>
+          Sube tu grabación, elige cómo fue capturada y obtén un archivo listo
+          para podcast.
+        </p>
+      </header>
+
+      <main class="main">
+        <!-- Sección 1 -->
+        <section class="card">
+          <h2>1. Configura tu procesamiento</h2>
+
+          <div class="field-group">
+            <p class="field-label">¿Cómo grabaste tu audio?</p>
+            <div class="radio-group">
+              <label>
+                <input
+                  type="radio"
+                  name="modo"
+                  value="LAPTOP_CELULAR"
+                  checked
+                />
+                <span>Laptop / Celular</span>
+              </label>
+              <label>
+                <input type="radio" 
+                       name="modo" 
+                       value="MICROFONO_EXTERNO" />
+                <span>Micrófono externo (USB / interfaz)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <p class="field-label">Archivo de audio</p>
+
+            <div id="dropzone" class="dropzone">
+              <p id="dropzone-text" class="dropzone-text">
+                Arrastra tu archivo aquí o haz clic para seleccionarlo
+              </p>
+              <input
+                id="file-input"
+                class="file-input"
+                type="file"
+                accept="audio/*"
+              />
+            </div>
+
+            <p class="help-text">Formatos recomendados: WAV, MP3, M4A.</p>
+          </div>
+
+          <div class="actions">
+            <button
+            id="process-btn"
+            type="button"
+            class="btn btn--primary"
+            >
+            Procesar audio
+            </button>
+
+            <p id="status" class="status"></p>
+          </div>
+        </section>
+
+        <!-- Sección 2 -->
+<section id="result-section" class="card card--secondary hidden">
+  <h2>2. Revisa tu resultado</h2>
+
+  <div class="players">
+    <div class="player-block">
+      <h3>Original</h3>
+      <audio id="player-original" controls></audio>
+    </div>
+    <div class="player-block">
+      <h3>Procesado</h3>
+      <audio id="player-processed" controls></audio>
+    </div>
+  </div>
+
+  <div class="result-actions">
+    <button
+  id="download-btn"
+  type="button"
+  class="btn btn--primary"
+>
+  Descargar audio procesado
+</button>
+
+<button
+  id="download-report-btn"
+  type="button"
+  class="btn btn--secondary"
+>
+  Descargar informe detallado
+</button>
+  </div>
+
+  <div id="analysis" class="analysis">
+    <!-- acá se rellena con datos del backend -->
+  </div>
+</section>
+
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+
+
