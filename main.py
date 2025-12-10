@@ -7,12 +7,32 @@ from pathlib import Path
 from typing import Dict, Any, Tuple
 import time
 
-# audioop estándar (Python <= 3.12) o audioop-lts (Python 3.13+ en Render)
-try:
-    import audioop  # stdlib
-except ImportError:  # en Render con Python 3.13
-    import audioop_lts as audioop  # type: ignore[import]
+import sys
+import types
 
+# --------------------------------------
+# Compatibilidad pydub / audioop / pyaudioop
+# --------------------------------------
+# pydub nuevas intenta hacer:  import pyaudioop as audioop
+# En algunos entornos solo existe audioop (módulo estándar).
+# Aquí:
+#   1) Si existe pyaudioop, se usa directo.
+#   2) Si no existe, intentamos importar audioop estándar
+#      y creamos un módulo "pyaudioop" falso apuntando a audioop.
+try:
+    import pyaudioop as audioop  # type: ignore
+except ImportError:
+    try:
+        import audioop  # type: ignore
+        fake = types.ModuleType("pyaudioop")
+        for name in dir(audioop):
+            setattr(fake, name, getattr(audioop, name))
+        sys.modules["pyaudioop"] = fake
+    except ImportError:
+        # Último recurso: no hay ni pyaudioop ni audioop.
+        # pydub podrá fallar en funciones que dependan de esto,
+        # pero al menos el import no rompe toda la app.
+        audioop = None  # type: ignore
 
 from pydub import AudioSegment, effects
 
