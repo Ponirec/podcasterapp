@@ -12,8 +12,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const statusEl = document.getElementById("status");
   const analysisEl = document.getElementById("analysis");
 
-  const BASE_API_URL = "";
-  const API_ENDPOINT = `${BASE_API_URL}/api/process_audio`;
+const BASE_API_URL = ""; 
+const API_ENDPOINT = `/api/process_audio`;
+
 
   let selectedFile = null;
   let processedFileUrl = "";
