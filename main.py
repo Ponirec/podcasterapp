@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -50,6 +50,13 @@ STATIC_DIR = BASE_DIR / "static"
 
 for d in (ORIGINAL_DIR, PROCESSED_DIR, REPORT_DIR):
     d.mkdir(parents=True, exist_ok=True)
+
+# =========================
+#   LÍMITE DE TAMAÑO DE ARCHIVO
+# =========================
+MAX_FILE_SIZE_MB = 20
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
 
 
 # =========================
@@ -564,11 +571,25 @@ async def process_audio(
     audio_file: UploadFile = File(...),
     mode: str = Form(...),
 ):
-    # Guardar original
-    raw_bytes = await audio_file.read()
+    # Leer el archivo con límite de tamaño
+    raw_bytes = await audio_file.read(MAX_FILE_SIZE_BYTES + 1)
+
+    # Validar tamaño: si se pasa, devolvemos 413 y no seguimos
+    if len(raw_bytes) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"El archivo es demasiado pesado. "
+                f"Tamaño máximo permitido: {MAX_FILE_SIZE_MB} MB. "
+                "Prueba subiendo un extracto más corto de tu audio."
+            ),
+        )
+
+    # Nombre "seguro" para guardar
     safe_suffix = audio_file.filename.replace(" ", "_")
     safe_name = f"{int(time.time())}_{safe_suffix}"
 
+    # Guardar original en disco
     original_path = ORIGINAL_DIR / safe_name
     with original_path.open("wb") as f:
         f.write(raw_bytes)
@@ -591,3 +612,4 @@ async def process_audio(
             "analysis": analysis,
         }
     )
+
