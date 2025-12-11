@@ -219,73 +219,74 @@ async function triggerDownload(resourceUrl, suggestedName) {
     formData.append("mode", modeValue);
 
     try {
-      const resp = await fetch(API_ENDPOINT, {
-        method: "POST",
-        body: formData,
-      });
+  const resp = await fetch(API_ENDPOINT, {
+    method: "POST",
+    body: formData,
+  });
 
-      console.log("Status respuesta backend:", resp.status);
+  console.log("Status respuesta backend:", resp.status);
 
-      // 👉 Manejo especial del 413 (archivo demasiado grande)
-      if (resp.status === 413) {
-        let msg =
-          "El archivo es demasiado pesado. Prueba con un audio más corto (máx. 20 MB).";
+  // 👉 Manejo especial del 413 (archivo demasiado grande)
+  if (resp.status === 413) {
+    let msg =
+      "El archivo es demasiado pesado. Prueba con un audio más corto (máx. 20 MB).";
 
-        try {
-          const errData = await resp.json();
-          if (errData && errData.detail) {
-            msg = errData.detail;
-          }
-        } catch (e) {
-          // si no viene JSON, usamos el mensaje por defecto
-        }
-
-        statusEl.textContent = msg;
-        statusEl.classList.add("status--error");
-        return; // no seguimos con el flujo normal
+    try {
+      const errData = await resp.json();
+      if (errData && errData.detail) {
+        msg = errData.detail;
       }
-
-      // 👉 Otros errores HTTP genéricos
-      if (!resp.ok) {
-        statusEl.textContent =
-          "Ocurrió un error al procesar el audio. Intenta nuevamente más tarde.";
-        statusEl.classList.add("status--error");
-        return;
-      }
-
-      const data = await resp.json();
-      console.log("JSON recibido:", data);
-
-      const originalUrl = `${BASE_API_URL}${data.original_url}`;
-      const processedUrl = `${BASE_API_URL}${data.processed_url}`;
-      const reportUrl = `${BASE_API_URL}${data.report_url}`;
-
-      processedFileUrl = processedUrl;
-      reportFileUrl = reportUrl;
-      lastOriginalFileName = data.original_filename || lastOriginalFileName;
-
-      if (playerOriginal) {
-        playerOriginal.src = originalUrl;
-        playerOriginal.load();
-      }
-      if (playerProcessed) {
-        playerProcessed.src = processedUrl;
-        playerProcessed.load();
-      }
-
-      renderAnalysis(data.analysis);
-      resultSection.classList.remove("hidden");
-
-      statusEl.textContent = "Procesamiento completado.";
-      statusEl.classList.remove("status--error");
-    } catch (err) {
-      console.error("Error en procesamiento:", err);
-      statusEl.textContent =
-        "No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.";
-      statusEl.classList.add("status--error");
-    } finally {
-      processBtn.disabled = false;
+    } catch (e) {
+      // si no viene JSON, usamos el mensaje por defecto
     }
+
+    statusEl.textContent = msg;
+    statusEl.classList.add("status--error");
+    return; // no seguimos con el flujo normal
+  }
+
+  // 👉 Otros errores HTTP genéricos
+  if (!resp.ok) {
+    statusEl.textContent =
+      "Ocurrió un error al procesar el audio. Intenta nuevamente más tarde.";
+    statusEl.classList.add("status--error");
+    return;
+  }
+
+  const data = await resp.json();
+  console.log("JSON recibido:", data);
+
+  const originalUrl = `${BASE_API_URL}${data.original_url}`;
+  const processedUrl = `${BASE_API_URL}${data.processed_url}`;
+  const reportUrl = `${BASE_API_URL}${data.report_url}`;
+
+  processedFileUrl = processedUrl;
+  reportFileUrl = reportUrl;
+  lastOriginalFileName = data.original_filename || lastOriginalFileName;
+
+  if (playerOriginal) {
+    playerOriginal.src = originalUrl;
+    playerOriginal.load();
+  }
+  if (playerProcessed) {
+    playerProcessed.src = processedUrl;
+    playerProcessed.load();
+  }
+
+  renderAnalysis(data.analysis);
+  resultSection.classList.remove("hidden");
+
+  statusEl.textContent = "Procesamiento completado.";
+  statusEl.classList.remove("status--error");
+} catch (err) {
+  console.error("Error en procesamiento:", err);
+  statusEl.textContent =
+    "No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.";
+  statusEl.classList.add("status--error");
+} finally {
+  processBtn.disabled = false;
+}
+
   });
 }
 
