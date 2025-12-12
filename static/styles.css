@@ -179,3 +179,106 @@ audio {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* =========================
+   SECCIÓN DE PLANES / PRECIOS
+   ========================= */
+
+.pricing {
+  margin-top: 4rem;
+  padding-top: 3rem;
+  border-top: 1px solid #333;
+}
+
+.pricing-title {
+  text-align: center;
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.pricing-intro {
+  text-align: center;
+  max-width: 620px;
+  margin: 0 auto 2.5rem;
+  font-size: 0.95rem;
+  color: #b3b3b3;
+}
+
+.pricing-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+/* En pantallas grandes, 3 columnas */
+@media (min-width: 900px) {
+  .pricing-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.pricing-card {
+  border: 1px solid #333;
+  border-radius: 14px;
+  padding: 1.6rem 1.4rem;
+  background: #0e0e0e;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.pricing-card--highlight {
+  border-color: #4ade80; /* verde suave */
+  box-shadow: 0 0 25px rgba(74, 222, 128, 0.18);
+}
+
+.pricing-name {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.pricing-price {
+  font-size: 1.4rem;
+  margin: 0.4rem 0;
+}
+
+.pricing-tagline {
+  font-size: 0.9rem;
+  color: #aaaaaa;
+  margin-bottom: 1rem;
+}
+
+.pricing-list {
+  list-style: disc;
+  padding-left: 1.2rem;
+  margin-bottom: 1.4rem;
+  font-size: 0.9rem;
+}
+
+.pricing-list li + li {
+  margin-top: 0.25rem;
+}
+
+.pricing-btn {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid #444;
+  background: #1a1a1a;
+  color: #999999;
+  font-size: 0.9rem;
+  cursor: not-allowed;
+}
+
+.pricing-note {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: #777777;
+}
+
+.pricing-disclaimer {
+  margin-top: 2rem;
+  font-size: 0.8rem;
+  text-align: center;
+  color: #777;
+}
+
