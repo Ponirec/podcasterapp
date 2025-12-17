@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Bac
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi import Response
+
 
 from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
@@ -207,6 +209,11 @@ def _startup():
 async def root():
     index_path = STATIC_DIR / "index.html"
     return index_path.read_text(encoding="utf-8")
+
+@app.head("/health")
+def health_head():
+    return Response(status_code=200)
+
 
 @app.get("/health")
 async def health():
