@@ -3,5 +3,6 @@ uvicorn[standard]
 pydub
 python-multipart
 audioop-lts; python_version >= "3.13"
+psycopg2-binary==2.9.9
 
 

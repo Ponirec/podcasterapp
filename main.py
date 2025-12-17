@@ -1,24 +1,22 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, BackgroundTasks
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 import time
 
 import sys
 import types
+import os
+import logging
+import hashlib
+import uuid
 
 # --------------------------------------
 # Compatibilidad pydub / audioop / pyaudioop
 # --------------------------------------
-# pydub nuevas intenta hacer:  import pyaudioop as audioop
-# En algunos entornos solo existe audioop (módulo estándar).
-# Aquí:
-#   1) Si existe pyaudioop, se usa directo.
-#   2) Si no existe, intentamos importar audioop estándar
-#      y creamos un módulo "pyaudioop" falso apuntando a audioop.
 try:
     import pyaudioop as audioop  # type: ignore
 except ImportError:
@@ -29,18 +27,139 @@ except ImportError:
             setattr(fake, name, getattr(audioop, name))
         sys.modules["pyaudioop"] = fake
     except ImportError:
-        # Último recurso: no hay ni pyaudioop ni audioop.
-        # pydub podrá fallar en funciones que dependan de esto,
-        # pero al menos el import no rompe toda la app.
         audioop = None  # type: ignore
 
 from pydub import AudioSegment, effects
 
 
 # =========================
+#   LOGGING
+# =========================
+logger = logging.getLogger("podcasterapp")
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+
+
+# =========================
+#   POSTGRES (MÉTRICAS)
+# =========================
+def _truthy(v: Optional[str]) -> bool:
+    return str(v or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+ENABLE_DB_METRICS = _truthy(os.getenv("ENABLE_DB_METRICS", "0"))
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+METRICS_SALT = os.getenv("METRICS_SALT", "").strip() or "change-me"  # cámbialo en Render
+
+# Intentamos soportar psycopg2 (recomendado) o psycopg (v3)
+DB_DRIVER = None
+try:
+    import psycopg2  # type: ignore
+    DB_DRIVER = "psycopg2"
+except Exception:
+    try:
+        import psycopg  # type: ignore
+        DB_DRIVER = "psycopg"
+    except Exception:
+        DB_DRIVER = None
+
+def db_metrics_ready() -> bool:
+    if not ENABLE_DB_METRICS:
+        return False
+    if not DATABASE_URL:
+        return False
+    if DB_DRIVER is None:
+        return False
+    return True
+
+CREATE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS request_metrics (
+  id UUID PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  mode TEXT,
+  client_ip_hash TEXT,
+  user_agent TEXT,
+
+  input_filename TEXT,
+  input_bytes BIGINT,
+  output_bytes BIGINT,
+  report_bytes BIGINT,
+
+  duration_original_s DOUBLE PRECISION,
+  duration_processed_s DOUBLE PRECISION,
+
+  processing_ms INTEGER,
+
+  quality_score INTEGER,
+  snr_db DOUBLE PRECISION,
+  sala_indice DOUBLE PRECISION,
+  clip_detectado BOOLEAN
+);
+"""
+
+INSERT_SQL = """
+INSERT INTO request_metrics (
+  id, mode, client_ip_hash, user_agent,
+  input_filename, input_bytes, output_bytes, report_bytes,
+  duration_original_s, duration_processed_s,
+  processing_ms,
+  quality_score, snr_db, sala_indice, clip_detectado
+) VALUES (
+  %(id)s, %(mode)s, %(client_ip_hash)s, %(user_agent)s,
+  %(input_filename)s, %(input_bytes)s, %(output_bytes)s, %(report_bytes)s,
+  %(duration_original_s)s, %(duration_processed_s)s,
+  %(processing_ms)s,
+  %(quality_score)s, %(snr_db)s, %(sala_indice)s, %(clip_detectado)s
+);
+"""
+
+def _anonymize_ip(ip: Optional[str]) -> Optional[str]:
+    if not ip:
+        return None
+    h = hashlib.sha256((METRICS_SALT + "|" + ip).encode("utf-8")).hexdigest()
+    return h[:16]  # corto y suficiente para contar únicos sin guardar IP real
+
+def _exec_sql(sql: str, params: Optional[dict] = None) -> None:
+    """
+    Ejecuta SQL. Si falla, solo loggea (no rompe flujo).
+    """
+    if not db_metrics_ready():
+        return
+
+    try:
+        if DB_DRIVER == "psycopg2":
+            import psycopg2  # type: ignore
+            conn = psycopg2.connect(DATABASE_URL)
+            conn.autocommit = True
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(sql, params)
+            finally:
+                conn.close()
+
+        elif DB_DRIVER == "psycopg":
+            import psycopg  # type: ignore
+            with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, params)
+
+    except Exception as e:
+        logger.warning(f"[DB_METRICS] Error ejecutando SQL: {e}")
+
+def init_db() -> None:
+    if not db_metrics_ready():
+        if ENABLE_DB_METRICS and DB_DRIVER is None:
+            logger.warning("[DB_METRICS] ENABLE_DB_METRICS=1 pero no hay driver instalado (psycopg2/psycopg).")
+        return
+    _exec_sql(CREATE_TABLE_SQL)
+    logger.info("[DB_METRICS] Tabla request_metrics lista.")
+
+def record_metrics(payload: dict) -> None:
+    _exec_sql(INSERT_SQL, payload)
+
+
+# =========================
 #   RUTAS DE ARCHIVOS
 # =========================
-
 BASE_DIR = Path(__file__).resolve().parent
 MEDIA_DIR = BASE_DIR / "media"
 ORIGINAL_DIR = MEDIA_DIR / "original"
@@ -57,12 +176,9 @@ for d in (ORIGINAL_DIR, PROCESSED_DIR, REPORT_DIR):
 MAX_FILE_SIZE_MB = 20
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
-
-
 # =========================
 #   APP FASTAPI + CORS
 # =========================
-
 app = FastAPI()
 
 origins = [
@@ -82,6 +198,9 @@ app.add_middleware(
 app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+@app.on_event("startup")
+def _startup():
+    init_db()
 
 # Ruta raíz: sirve index.html
 @app.get("/", response_class=HTMLResponse)
@@ -89,19 +208,25 @@ async def root():
     index_path = STATIC_DIR / "index.html"
     return index_path.read_text(encoding="utf-8")
 
+@app.get("/health")
+async def health():
+    return {
+        "ok": True,
+        "db_metrics_enabled": ENABLE_DB_METRICS,
+        "db_driver": DB_DRIVER,
+        "db_url_present": bool(DATABASE_URL),
+    }
+
 # =========================
 #   LÓGICA DE AUDIO
 # =========================
-
 def analizar_audio(audio: AudioSegment) -> Dict[str, Any]:
     """Devuelve métricas básicas del audio original, índice de sala, SNR y clipping."""
 
     dur_ms = len(audio)
 
-    # Nivel global de la grabación (voz + ruido)
     nivel_dbfs = float(audio.dBFS) if audio.dBFS != float("-inf") else -90.0
 
-    # Estimar ruido mirando el 25% más bajo de los trozos
     chunk_ms = 200
     niveles = []
     for i in range(0, dur_ms, chunk_ms):
@@ -116,15 +241,11 @@ def analizar_audio(audio: AudioSegment) -> Dict[str, Any]:
     else:
         ruido_estimado = -90.0
 
-    # No dejamos que baje de -80 dBFS para no sobrerrepresentar silencio digital
     ruido_estimado = max(ruido_estimado, -80.0)
 
-    # Relación señal/ruido (SNR) en dB
-    snr = nivel_dbfs - ruido_estimado  # ambos negativos
+    snr = nivel_dbfs - ruido_estimado
 
-    # Clasificación de sala
     if snr >= 55 and ruido_estimado <= -75:
-        # Escenario muy "seco": puede ser cabina o simplemente mic muy cerca
         sala_indice = 0.1
         sala_desc = (
             "muy controlada (poca sala perceptible: micrófono muy cerca o espacio con buena absorción)"
@@ -139,30 +260,22 @@ def analizar_audio(audio: AudioSegment) -> Dict[str, Any]:
         sala_indice = 1.0
         sala_desc = "muy viva / con mucha reflexión (espacio duro o casi vacío, eco marcado)"
 
-    # --------------------
-    # Detección de clip
-    # --------------------
-    # Miramos los samples crudos para ver qué tan cerca están del máximo digital
-    sample_width = audio.sample_width  # bytes
+    sample_width = audio.sample_width
     max_possible = float((1 << (8 * sample_width - 1)) - 1)
 
     samples = audio.get_array_of_samples()
     if samples:
         max_abs = max(abs(s) for s in samples)
-        peak_ratio = max_abs / max_possible  # 1.0 == full scale
+        peak_ratio = max_abs / max_possible
         clip_samples = sum(1 for s in samples if abs(s) >= 0.98 * max_possible)
         clip_ratio = clip_samples / len(samples)
     else:
         peak_ratio = 0.0
         clip_ratio = 0.0
 
-    # Nivel pico en dBFS (pydub ya lo trae)
     peak_db = audio.max_dBFS if audio.max_dBFS != float("-inf") else -90.0
-
-    # Crest factor aproximado: diferencia entre pico y nivel medio
     crest_factor = peak_db - nivel_dbfs
 
-    # Heurística simple de clip
     clip_detectado = (peak_ratio > 0.985) and (clip_ratio > 0.0005)
 
     if clip_detectado:
@@ -193,48 +306,36 @@ def analizar_audio(audio: AudioSegment) -> Dict[str, Any]:
         "clip_descripcion": clip_desc,
     }
 
-
 def calcular_quality(a: Dict[str, Any], modo: str) -> Tuple[int, str]:
-    """
-    Calcula un puntaje de calidad 0–100 y una etiqueta textual
-    en base a SNR, sala, nivel, clipping y dispositivo.
-    """
-    score = 45  # base un poco más baja
+    score = 45
 
     snr = a.get("snr_db", 0.0)
     sala = a.get("sala_indice", 0.5)
     nivel_orig = a.get("nivel_original_dbfs", -24.0)
     clip = a.get("clip_detectado", False)
 
-    # A) SNR: más SNR, más puntos (máx +20)
     snr_clamped = max(10.0, min(40.0, snr))
-    snr_contrib = (snr_clamped - 10.0) * (20.0 / 30.0)  # 10 → 0 pts, 40 → +20 pts
+    snr_contrib = (snr_clamped - 10.0) * (20.0 / 30.0)
     score += snr_contrib
 
-    # B) Sala: 0.0 (pro) → +15, 1.0 (horrible) → 0
     score += (1.0 - min(max(sala, 0.0), 1.0)) * 15.0
 
-    # C) Nivel original (ideal aprox -24 a -18 dBFS)
     if -26 <= nivel_orig <= -16:
-        score += 10  # nivel muy sano
+        score += 10
     elif -32 <= nivel_orig < -26 or -16 < nivel_orig <= -10:
-        score += 5   # aceptable
+        score += 5
     else:
-        score -= 5   # nivel muy bajo o muy al límite
+        score -= 5
 
-    # D) Clipping: castigo más fuerte,
-    # y además reducimos el peso del buen SNR (que se ve inflado en audios muy calientes)
     if clip:
-        score -= 30               # castigo base fuerte
-        score -= snr_contrib * 0.3  # penalizar un poco el "SNR bonito" con clip
+        score -= 30
+        score -= snr_contrib * 0.3
 
-    # E) Dispositivo: penalizar un poco laptop, premiar mic externo
     if "Laptop / Celular" in modo:
         score -= 5
     elif "Micrófono externo" in modo:
         score += 5
 
-    # Normalizar a 0–100
     score = int(max(0, min(100, round(score))))
 
     if score < 40:
@@ -248,7 +349,6 @@ def calcular_quality(a: Dict[str, Any], modo: str) -> Tuple[int, str]:
 
     return score, label
 
-
 def recortar_final_despues_de_voz(
     audio: AudioSegment,
     chunk_ms: int = 150,
@@ -256,21 +356,13 @@ def recortar_final_despues_de_voz(
     margen_ms: int = 400,
     min_silencio_ms: int = 2000,
 ) -> AudioSegment:
-    """
-    Recorre el audio desde el final hacia atrás y busca el último trozo
-    que esté claramente por encima del "nivel fuerte".
-
-    Solo recorta si hay al menos ~2 segundos de cola después de la última parte fuerte.
-    """
     dur = len(audio)
     if dur <= chunk_ms * 2:
-        return audio  # muy corto, no tocamos
+        return audio
 
-    # Nivel máximo aproximado del audio
     max_db = audio.max_dBFS if audio.max_dBFS != float("-inf") else -90.0
     limite_db = max_db - umbral_rel_db
 
-    # Recorremos desde el final hacia atrás
     ultimo_util_ms = None
 
     for inicio in range(dur - chunk_ms, -1, -chunk_ms):
@@ -282,20 +374,15 @@ def recortar_final_despues_de_voz(
             break
 
     if ultimo_util_ms is None:
-        # No encontramos nada "fuerte": no recortamos
         return audio
 
-    # ¿Cuánto hay desde la última parte "fuerte" hasta el final?
     silencio_ms = dur - ultimo_util_ms
 
-    # Si la cola es corta (menos que min_silencio_ms), mejor no recortar nada
     if silencio_ms < min_silencio_ms:
         return audio
 
-    # Si la cola es larga, sí recortamos dejando un margen
     corte_ms = min(dur, ultimo_util_ms + margen_ms)
     return audio[:corte_ms]
-
 
 def limpiar_golpe_tecla_final(
     audio: AudioSegment,
@@ -303,12 +390,9 @@ def limpiar_golpe_tecla_final(
     umbral_db: float = -25.0,
     diferencia_db: float = 8.0,
 ) -> AudioSegment:
-    """
-    Detecta un golpe corto y fuerte al final (ej: tecla al detener grabación) y lo corta.
-    """
     dur = len(audio)
     if dur < ventana_ms * 2:
-        return audio  # muy corto, no hacemos nada
+        return audio
 
     inicio_ultima = dur - ventana_ms
     inicio_prev = dur - 2 * ventana_ms
@@ -319,28 +403,18 @@ def limpiar_golpe_tecla_final(
     prev_db = bloque_prev.dBFS if bloque_prev.dBFS != float("-inf") else -90.0
     ult_db = bloque_ult.dBFS if bloque_ult.dBFS != float("-inf") else -90.0
 
-    # Condición: último bloque bastante fuerte y mucho más fuerte que el anterior
     if (ult_db > umbral_db) and (ult_db - prev_db >= diferencia_db):
-        # Consideramos esto un golpe de tecla y lo cortamos
         return audio[:inicio_ultima]
 
     return audio
 
-
 def procesar_audio_core(original_path: Path, modo: str) -> Tuple[Path, Dict[str, Any]]:
-    """
-    Carga el audio, recorta 300 ms al inicio y ~700 ms al final,
-    aplica filtro pasa altos + normalización y devuelve
-    ruta del archivo procesado + datos de análisis.
-    """
     audio = AudioSegment.from_file(original_path)
 
-    # Análisis siempre sobre el audio original completo
     analisis = analizar_audio(audio)
 
-    # 1) Recorte inicio / final (fijo)
-    TRIM_INICIO_MS = 300   # 0,3 s al inicio
-    TRIM_FINAL_MS = 700    # ~0,7 s al final
+    TRIM_INICIO_MS = 300
+    TRIM_FINAL_MS = 700
 
     dur_ms = len(audio)
 
@@ -351,14 +425,12 @@ def procesar_audio_core(original_path: Path, modo: str) -> Tuple[Path, Dict[str,
     else:
         audio_proc_base = audio
 
-    # 2) Filtro + normalización
     audio_proc_base = audio_proc_base.high_pass_filter(80)
     audio_proc = effects.normalize(audio_proc_base)
 
-       # 🔽 NUEVO: pequeño fade out global al final (120 ms aprox)
+    # 🔽 NUEVO: pequeño fade out global al final (120 ms aprox)
     audio_proc = audio_proc.fade_out(120)
 
-    # Métricas finales
     analisis["nivel_final_dbfs"] = round(
         float(audio_proc.dBFS) if audio_proc.dBFS != float("-inf") else -90.0, 1
     )
@@ -370,21 +442,17 @@ def procesar_audio_core(original_path: Path, modo: str) -> Tuple[Path, Dict[str,
     analisis["duracion_original_s"] = round(dur_ms / 1000.0, 2)
     analisis["duracion_procesada_s"] = round(len(audio_proc) / 1000.0, 2)
 
-    # Score de calidad global
     quality_score, quality_label = calcular_quality(analisis, analisis["modo"])
     analisis["quality_score"] = quality_score
     analisis["quality_label"] = quality_label
 
-    # Guardar archivo procesado
     processed_name = f"{original_path.stem}_PROCESADO.wav"
     processed_path = PROCESSED_DIR / processed_name
     audio_proc.export(processed_path, format="wav")
 
     return processed_path, analisis
 
-
 def construir_informe_texto(nombre_original: str, a: Dict[str, Any]) -> str:
-    """Texto amigable para el .txt de informe, con recomendaciones dinámicas."""
     lineas = []
     lineas.append("=== Informe de procesamiento de audio ===")
     lineas.append("")
@@ -442,10 +510,6 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any]) -> str:
     lineas.append(a.get("clip_descripcion", "Sin datos de clipping."))
     lineas.append("")
 
-    # =========================
-    #   RECOMENDACIONES DINÁMICAS
-    # =========================
-
     modo = a.get("modo", "")
     nivel_orig = a.get("nivel_original_dbfs", -20.0)
     snr = a.get("snr_db", 0.0)
@@ -454,20 +518,18 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any]) -> str:
 
     recomendaciones = []
 
-    # 1) Comentario según modo
     if "Laptop" in modo:
         recomendaciones.append(
             "Estás grabando con el micrófono del equipo (laptop / celular). "
             "Si puedes, da el salto a un micrófono externo sencillo (USB o interfaz), "
             "vas a notar una mejora grande en claridad y ruido."
         )
-    else:  # Micrófono externo
+    else:
         recomendaciones.append(
             "Estás grabando con un micrófono externo. Es una muy buena base para lograr "
             "un sonido de podcast más profesional."
         )
 
-    # 2) Nivel de voz (ganancia / distancia)
     if nivel_orig <= -30:
         recomendaciones.append(
             "Tu nivel de voz original llegó bastante bajo. Para la próxima, acércate un poco más "
@@ -491,7 +553,6 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any]) -> str:
             "baja un poco la ganancia del micrófono o aléjate unos centímetros para evitar el clipeo."
         )
 
-    # 3) Ruido / SNR
     if snr < 18:
         recomendaciones.append(
             "Hay bastante ruido de fondo (baja relación señal/ruido). Revisa si puedes apagar ventiladores, "
@@ -508,7 +569,6 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any]) -> str:
             "Es un buen punto de partida para procesar sin artefactos agresivos."
         )
 
-    # 4) Comportamiento de la sala
     if sala_ind >= 0.75:
         recomendaciones.append(
             "La sala suena bastante viva (muchas reflexiones). Para mejorar, suma absorción casera alrededor: "
@@ -525,7 +585,6 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any]) -> str:
             "solo cuida el nivel de ruido de fondo y la distancia al micrófono."
         )
 
-    # 5) Cómo respondió la app al nivel (delta de procesado)
     if abs(delta_nivel) < 1.0:
         recomendaciones.append(
             "La app casi no tuvo que corregir el nivel global porque tu grabación ya venía bien "
@@ -541,14 +600,12 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any]) -> str:
             "para la mezcla y master."
         )
 
-    # 6) Recomendación explícita si hay clip
     if clip:
         recomendaciones.append(
             "Al detectar probable clip digital, es recomendable repetir la toma con un poco menos de ganancia "
             "si se trata de un material importante (entrevista, episodio principal, etc.)."
         )
 
-    # 7) Tip de uso pensando en el recorte auto
     recomendaciones.append(
         "Para aprovechar mejor la app, deja alrededor de 1 segundo de silencio antes de empezar a hablar "
         "y otro segundo al terminar. Eso ayuda a limpiar clics de teclado, ruidos de stop y respiraciones bruscas."
@@ -561,20 +618,20 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any]) -> str:
 
     return "\n".join(lineas)
 
-
 # =========================
 #   ENDPOINT
 # =========================
-
 @app.post("/api/process_audio")
 async def process_audio(
+    request: Request,
+    background_tasks: BackgroundTasks,
     audio_file: UploadFile = File(...),
     mode: str = Form(...),
 ):
-    # Leer el archivo con límite de tamaño
+    t0 = time.perf_counter()
+
     raw_bytes = await audio_file.read(MAX_FILE_SIZE_BYTES + 1)
 
-    # Validar tamaño: si se pasa, devolvemos 413 y no seguimos
     if len(raw_bytes) > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=413,
@@ -585,23 +642,53 @@ async def process_audio(
             ),
         )
 
-    # Nombre "seguro" para guardar
     safe_suffix = audio_file.filename.replace(" ", "_")
     safe_name = f"{int(time.time())}_{safe_suffix}"
 
-    # Guardar original en disco
     original_path = ORIGINAL_DIR / safe_name
     with original_path.open("wb") as f:
         f.write(raw_bytes)
 
-    # Procesar
     processed_path, analysis = procesar_audio_core(original_path, mode)
 
-    # Informe
     report_name = f"{processed_path.stem}_report.txt"
     report_path = REPORT_DIR / report_name
     report_text = construir_informe_texto(safe_name, analysis)
     report_path.write_text(report_text, encoding="utf-8")
+
+    processing_ms = int(round((time.perf_counter() - t0) * 1000.0))
+
+    # --- MÉTRICAS (NO ROMPEN FLUJO) ---
+    if db_metrics_ready():
+        try:
+            ip = request.client.host if request.client else None
+            ua = request.headers.get("user-agent")
+
+            payload = {
+                "id": str(uuid.uuid4()),
+                "mode": analysis.get("modo"),
+                "client_ip_hash": _anonymize_ip(ip),
+                "user_agent": ua,
+
+                "input_filename": safe_name,
+                "input_bytes": int(len(raw_bytes)),
+                "output_bytes": int(processed_path.stat().st_size) if processed_path.exists() else None,
+                "report_bytes": int(report_path.stat().st_size) if report_path.exists() else None,
+
+                "duration_original_s": float(analysis.get("duracion_original_s")) if analysis.get("duracion_original_s") is not None else None,
+                "duration_processed_s": float(analysis.get("duracion_procesada_s")) if analysis.get("duracion_procesada_s") is not None else None,
+
+                "processing_ms": processing_ms,
+
+                "quality_score": int(analysis.get("quality_score")) if analysis.get("quality_score") is not None else None,
+                "snr_db": float(analysis.get("snr_db")) if analysis.get("snr_db") is not None else None,
+                "sala_indice": float(analysis.get("sala_indice")) if analysis.get("sala_indice") is not None else None,
+                "clip_detectado": bool(analysis.get("clip_detectado")) if analysis.get("clip_detectado") is not None else None,
+            }
+
+            background_tasks.add_task(record_metrics, payload)
+        except Exception as e:
+            logger.warning(f"[DB_METRICS] No se pudieron preparar métricas: {e}")
 
     return JSONResponse(
         {
@@ -612,4 +699,3 @@ async def process_audio(
             "analysis": analysis,
         }
     )
-
