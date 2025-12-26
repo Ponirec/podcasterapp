@@ -9,189 +9,169 @@
   <body>
     <div class="app">
       <header class="header">
-        <h1>Mejora tu audio</h1>
-        <p>
-          Sube tu grabación, elige cómo fue capturada y obtén un archivo listo
-          para podcast.
-        </p>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div>
+            <h1 data-i18n="header.title">Mejora tu audio</h1>
+            <p data-i18n="header.subtitle">
+              Sube tu grabación, elige cómo fue capturada y obtén un archivo listo para podcast.
+            </p>
+          </div>
+
+          <!-- Toggle idioma -->
+          <div class="lang-toggle" style="display:flex; gap:6px; align-items:center;">
+            <button id="lang-es" type="button" class="btn btn--secondary" aria-label="Español">ES</button>
+            <button id="lang-en" type="button" class="btn btn--secondary" aria-label="English">EN</button>
+          </div>
+        </div>
       </header>
 
       <main class="main">
         <!-- Sección 1 -->
         <section class="card">
-          <h2>1. Configura tu procesamiento</h2>
+          <h2 data-i18n="section1.title">1. Configura tu procesamiento</h2>
 
           <div class="field-group">
-            <p class="field-label">¿Cómo grabaste tu audio?</p>
+            <p class="field-label" data-i18n="field.recording.label">¿Cómo grabaste tu audio?</p>
             <div class="radio-group">
               <label>
-                <input
-                  type="radio"
-                  name="modo"
-                  value="LAPTOP_CELULAR"
-                  checked
-                />
-                <span>Laptop / Celular</span>
+                <input type="radio" name="modo" value="LAPTOP_CELULAR" checked />
+                <span data-i18n="field.recording.option.laptop">Laptop / Celular</span>
               </label>
+
               <label>
-                <input type="radio" 
-                       name="modo" 
-                       value="MICROFONO_EXTERNO" />
-                <span>Micrófono externo (USB / interfaz)</span>
+                <input type="radio" name="modo" value="MICROFONO_EXTERNO" />
+                <span data-i18n="field.recording.option.externalMic">Micrófono externo (USB / interfaz)</span>
               </label>
             </div>
           </div>
 
           <div class="field-group">
-            <p class="field-label">Archivo de audio</p>
+            <p class="field-label" data-i18n="field.file.label">Archivo de audio</p>
 
             <div id="dropzone" class="dropzone">
-              <p id="dropzone-text" class="dropzone-text">
+              <p id="dropzone-text" class="dropzone-text" data-i18n="dropzone.text">
                 Arrastra tu archivo aquí o haz clic para seleccionarlo
               </p>
-              <p style="font-size: 0.9rem;">
-                Máximo 20 MB (aprox. 10 minutos de audio).  
+
+              <p style="font-size: 0.9rem;" data-i18n="dropzone.limit">
+                Máximo 20 MB (aprox. 10 minutos de audio).
                 Si tu archivo es más grande, sube un extracto o una parte del episodio.
               </p>
 
-              <input
-                id="file-input"
-                class="file-input"
-                type="file"
-                accept="audio/*"
-              />
+              <input id="file-input" class="file-input" type="file" accept="audio/*" />
             </div>
 
-            <p class="help-text">Formatos recomendados: WAV, MP3, M4A.</p>
+            <p class="help-text" data-i18n="help.formats">Formatos recomendados: WAV, MP3, M4A.</p>
           </div>
 
           <div class="actions">
-            <button
-            id="process-btn"
-            type="button"
-            class="btn btn--primary"
-            >
-            Procesar audio
+            <button id="process-btn" type="button" class="btn btn--primary" data-i18n="actions.process">
+              Procesar audio
             </button>
 
-            <div id="error-message" style="display:none; color:#b00020; margin-top:10px; font-size:0.9rem;">
-            </div>
+            <div
+              id="error-message"
+              style="display:none; color:#b00020; margin-top:10px; font-size:0.9rem;"
+            ></div>
 
-            <p style="margin-top: 8px; font-size: 0.85rem; color: #aaaaaa;">
-            Más adelante lanzaremos planes Plus y Pro con episodios completos y asesoría 1:1.
-            Por ahora esta versión es gratuita para pruebas.
+            <p style="margin-top: 8px; font-size: 0.85rem; color: #aaaaaa;" data-i18n="note.beta">
+              Más adelante lanzaremos planes Plus y Pro con episodios completos y asesoría 1:1.
+              Por ahora esta versión es gratuita para pruebas.
             </p>
-
 
             <p id="status" class="status"></p>
           </div>
         </section>
 
         <!-- Sección 2 -->
-<section id="result-section" class="card card--secondary hidden">
-  <h2>2. Revisa tu resultado</h2>
+        <section id="result-section" class="card card--secondary hidden">
+          <h2 data-i18n="section2.title">2. Revisa tu resultado</h2>
 
-  <div class="players">
-    <div class="player-block">
-      <h3>Original</h3>
-      <audio id="player-original" controls></audio>
-    </div>
-    <div class="player-block">
-      <h3>Procesado</h3>
-      <audio id="player-processed" controls></audio>
-    </div>
-  </div>
+          <div class="players">
+            <div class="player-block">
+              <h3 data-i18n="player.original">Original</h3>
+              <audio id="player-original" controls></audio>
+            </div>
+            <div class="player-block">
+              <h3 data-i18n="player.processed">Procesado</h3>
+              <audio id="player-processed" controls></audio>
+            </div>
+          </div>
 
-  <div class="result-actions">
-    <button
-  id="download-btn"
-  type="button"
-  class="btn btn--primary"
->
-  Descargar audio procesado
-</button>
+          <div class="result-actions">
+            <button id="download-btn" type="button" class="btn btn--primary" data-i18n="actions.downloadAudio">
+              Descargar audio procesado
+            </button>
 
-<button
-  id="download-report-btn"
-  type="button"
-  class="btn btn--secondary"
->
-  Descargar informe detallado
-</button>
-  </div>
+            <button id="download-report-btn" type="button" class="btn btn--secondary" data-i18n="actions.downloadReport">
+              Descargar informe detallado
+            </button>
+          </div>
 
-  <div id="analysis" class="analysis">
-    <!-- acá se rellena con datos del backend -->
-  </div>
-</section>
-
+          <div id="analysis" class="analysis">
+            <!-- acá se rellena con datos del backend -->
+          </div>
+        </section>
       </main>
     </div>
 
     <script src="/static/app.js"></script>
+
     <section class="pricing" id="planes">
-  <h2 class="pricing-title">Planes (próximamente)</h2>
-  <p class="pricing-intro">
-    Hoy estás usando la versión beta gratuita (plan Free). Más adelante podrás elegir entre estos planes,
-    según el nivel de tu podcast y el tipo de acompañamiento que necesites.
-  </p>
+      <h2 class="pricing-title" data-i18n="pricing.title">Planes (próximamente)</h2>
+      <p class="pricing-intro" data-i18n="pricing.intro">
+        Hoy estás usando la versión beta gratuita (plan Free). Más adelante podrás elegir entre estos planes,
+        según el nivel de tu podcast y el tipo de acompañamiento que necesites.
+      </p>
 
-  <div class="pricing-grid">
-    <!-- Plan Free -->
-    <article class="pricing-card">
-      <h3 class="pricing-name">Free</h3>
-      <p class="pricing-price">Gratis</p>
-      <p class="pricing-tagline">Ideal para probar la app y mejorar tus primeras grabaciones.</p>
-      <ul class="pricing-list">
-        <li>Procesamiento automático de audio</li>
-        <li>Informe de calidad con recomendaciones básicas</li>
-        <li>Archivos hasta ~20 MB (≈10 minutos)</li>
-        <li>Versión beta: sin soporte personalizado</li>
-      </ul>
-      <button class="pricing-btn" disabled>Plan actual</button>
-      <p class="pricing-note">Esto es lo que estás usando ahora mismo.</p>
-    </article>
+      <div class="pricing-grid">
+        <!-- Plan Free -->
+        <article class="pricing-card">
+          <h3 class="pricing-name">Free</h3>
+          <p class="pricing-price" data-i18n="pricing.free.price">Gratis</p>
+          <p class="pricing-tagline" data-i18n="pricing.free.tagline">Ideal para probar la app y mejorar tus primeras grabaciones.</p>
+          <ul class="pricing-list">
+            <li data-i18n="pricing.free.li1">Procesamiento automático de audio</li>
+            <li data-i18n="pricing.free.li2">Informe de calidad con recomendaciones básicas</li>
+          </ul>
+          <button class="pricing-btn" disabled data-i18n="pricing.btn.soon">Disponible pronto</button>
+          <p class="pricing-note" data-i18n="pricing.note.free">Este es el plan que estás usando ahora.</p>
+        </article>
 
-    <!-- Plan Plus -->
-    <article class="pricing-card pricing-card--highlight">
-      <h3 class="pricing-name">Plus</h3>
-      <p class="pricing-price">USD $9 / mes</p>
-      <p class="pricing-tagline">Para podcasters que suben episodios completos.</p>
-      <ul class="pricing-list">
-        <li>Todo lo del plan Free</li>
-        <li>Archivos hasta ~60 minutos (o ~100 MB)</li>
-        <li>Hasta 20 procesamientos al mes (ajustable)</li>
-        <li>Informe más detallado por episodio</li>
-        <li>Prioridad suave en el procesamiento</li>
-      </ul>
-      <button class="pricing-btn" disabled>Disponible pronto</button>
-      <p class="pricing-note">Se ajustará según el feedback de esta beta.</p>
-    </article>
+        <!-- Plan Plus -->
+        <article class="pricing-card">
+          <h3 class="pricing-name">Plus</h3>
+          <p class="pricing-price">USD $19 / mes</p>
+          <p class="pricing-tagline" data-i18n="pricing.plus.tagline">Para episodios completos + mejoras de voz más finas.</p>
+          <ul class="pricing-list">
+            <li data-i18n="pricing.plus.li1">Procesamiento de episodios completos</li>
+            <li data-i18n="pricing.plus.li2">Informe más detallado + recomendaciones avanzadas</li>
+          </ul>
+          <button class="pricing-btn" disabled data-i18n="pricing.btn.soon">Disponible pronto</button>
+          <p class="pricing-note" data-i18n="pricing.note.plus">Primero se abrirá para un grupo reducido de creadores.</p>
+        </article>
 
-    <!-- Plan Pro -->
-    <article class="pricing-card">
-      <h3 class="pricing-name">Pro</h3>
-      <p class="pricing-price">USD $55 / mes</p>
-      <p class="pricing-tagline">Asesoría 1:1 + mastering profesional.</p>
-      <ul class="pricing-list">
-        <li>Todo lo del plan Plus</li>
-        <li>1 sesión mensual 1:1 para revisar tu sonido y setup</li>
-        <li>1 episodio al mes masterizado manualmente en estudio</li>
-        <li>Descuento en masters adicionales</li>
-        <li>Ideal para podcasters que quieren subir de nivel</li>
-      </ul>
-      <button class="pricing-btn" disabled>Disponible pronto</button>
-      <p class="pricing-note">Primero se abrirá para un grupo reducido de creadores.</p>
-    </article>
-  </div>
+        <!-- Plan Pro -->
+        <article class="pricing-card">
+          <h3 class="pricing-name">Pro</h3>
+          <p class="pricing-price">USD $55 / mes</p>
+          <p class="pricing-tagline" data-i18n="pricing.pro.tagline">Asesoría 1:1 + mastering profesional.</p>
+          <ul class="pricing-list">
+            <li data-i18n="pricing.pro.li1">Todo lo del plan Plus</li>
+            <li data-i18n="pricing.pro.li2">1 sesión mensual 1:1 para revisar tu sonido y setup</li>
+            <li data-i18n="pricing.pro.li3">1 episodio al mes masterizado manualmente en estudio</li>
+            <li data-i18n="pricing.pro.li4">Descuento en masters adicionales</li>
+            <li data-i18n="pricing.pro.li5">Ideal para podcasters que quieren subir de nivel</li>
+          </ul>
+          <button class="pricing-btn" disabled data-i18n="pricing.btn.soon">Disponible pronto</button>
+          <p class="pricing-note" data-i18n="pricing.note.pro">Primero se abrirá para un grupo reducido de creadores.</p>
+        </article>
+      </div>
 
-  <p class="pricing-disclaimer">
-    Los precios y características son <strong>referenciales</strong> (valores aprox. en USD) y pueden ajustarse según el uso real
-    y el feedback que recibamos durante esta etapa beta.
-  </p>
-</section>
-
+      <p class="pricing-disclaimer" data-i18n="pricing.disclaimer">
+        Los precios y características son <strong>referenciales</strong> (valores aprox. en USD) y pueden ajustarse según el uso real
+        y el feedback que recibamos durante esta etapa beta.
+      </p>
+    </section>
   </body>
 </html>
-
-
