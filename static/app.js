@@ -6,6 +6,31 @@ document.addEventListener("DOMContentLoaded", () => {
   const LANG_STORAGE_KEY = "podcasterapp_lang";
   let currentLang = "es";
 
+  // 🔁 Aliases: tu HTML usa keys tipo "section1.title" pero tu diccionario usa "s1.title".
+  // Esto evita que se impriman las keys en pantalla.
+  const KEY_ALIAS = {
+    // Sección 1
+    "section1.title": "s1.title",
+    "field.recording.label": "s1.capture.label",
+    "field.recording.option.laptop": "s1.capture.laptop",
+    "field.recording.option.externalMic": "s1.capture.external",
+    "field.file.label": "s1.file.label",
+
+    // Dropzone
+    "dropzone.limit": "dropzone.max",
+
+    // Sección 2
+    "section2.title": "s2.title",
+    "player.original": "s2.original",
+    "player.processed": "s2.processed",
+
+    // Pricing (tu HTML usa pricing.btn.soon y pricing.note.*)
+    "pricing.btn.soon": "pricing.plus.btn",
+    "pricing.note.free": "pricing.free.note",
+    "pricing.note.plus": "pricing.plus.note",
+    "pricing.note.pro": "pricing.pro.note",
+  };
+
   const I18N = {
     es: {
       "head.title": "Limpia tu audio",
@@ -16,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
       "header.subtitle":
         "Sube tu grabación, elige cómo fue capturada y obtén un archivo listo para podcast.",
 
+      // (Tus keys internas)
       "s1.title": "1. Configura tu procesamiento",
       "s1.capture.label": "¿Cómo grabaste tu audio?",
       "s1.capture.laptop": "Laptop / Celular",
@@ -119,7 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
       "dropzone.text": "Drag your file here or click to select it",
       "dropzone.selected": "Selected file: {name}",
       "dropzone.max":
-        "Max 20 MB (about 10 minutes). If your file is larger, upload a short excerpt or part of the episode.",
+        "Max 20 MB (about 10 minutes of audio). If your file is larger, upload an excerpt or a part of the episode.",
       "help.formats": "Recommended formats: WAV, MP3, M4A.",
 
       "actions.process": "Process audio",
@@ -214,7 +240,15 @@ document.addEventListener("DOMContentLoaded", () => {
   function t(key, vars = null) {
     const dict = I18N[currentLang] || I18N.es;
     const fallback = I18N.es;
-    let s = dict[key] ?? fallback[key] ?? key;
+
+    const alias = KEY_ALIAS[key];
+
+    let s =
+      dict[key] ??
+      (alias ? dict[alias] : undefined) ??
+      fallback[key] ??
+      (alias ? fallback[alias] : undefined) ??
+      key;
 
     if (vars && typeof vars === "object") {
       for (const [k, v] of Object.entries(vars)) {
@@ -226,11 +260,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function applyTranslations() {
     document.documentElement.lang = currentLang;
+    document.title = t("head.title");
 
-    // textContent
+    // textContent / innerHTML (para mantener <strong> del disclaimer)
     document.querySelectorAll("[data-i18n]").forEach((el) => {
       const key = el.getAttribute("data-i18n");
       if (!key) return;
+
+      if (key === "pricing.disclaimer") {
+        el.innerHTML = `${t("pricing.disclaimer.before")} <strong>${t(
+          "pricing.disclaimer.strong"
+        )}</strong> ${t("pricing.disclaimer.after")}`;
+        return;
+      }
+
       el.textContent = t(key);
     });
 
@@ -241,19 +284,11 @@ document.addEventListener("DOMContentLoaded", () => {
       el.setAttribute("placeholder", t(key));
     });
 
-    // attr mapping: data-i18n-attr="aria-label:key1;title:key2"
-    document.querySelectorAll("[data-i18n-attr]").forEach((el) => {
-      const spec = el.getAttribute("data-i18n-attr");
-      if (!spec) return;
-      const parts = spec.split(";").map((x) => x.trim()).filter(Boolean);
-      for (const part of parts) {
-        const [attr, key] = part.split(":").map((x) => x.trim());
-        if (attr && key) el.setAttribute(attr, t(key));
-      }
-    });
-
-    updateLangToggleUI();
-    updateDropzoneText(); // refresca texto si ya había archivo seleccionado
+    // (Opcional) aria-label en botones de idioma
+    const btnEs = document.getElementById("lang-es");
+    const btnEn = document.getElementById("lang-en");
+    if (btnEs) btnEs.setAttribute("aria-label", currentLang === "en" ? "Spanish" : "Español");
+    if (btnEn) btnEn.setAttribute("aria-label", currentLang === "en" ? "English" : "Inglés");
   }
 
   function setLanguage(lang, { persist = true } = {}) {
@@ -265,332 +300,209 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem(LANG_STORAGE_KEY, lang);
       } catch (_) {}
     }
+
     applyTranslations();
-  }
 
-  function updateLangToggleUI() {
-    const esBtn = document.getElementById("lang-es");
-    const enBtn = document.getElementById("lang-en");
-    if (!esBtn || !enBtn) return;
-
-    const isEs = currentLang === "es";
-    esBtn.classList.toggle("is-active", isEs);
-    enBtn.classList.toggle("is-active", !isEs);
-
-    esBtn.setAttribute("aria-pressed", String(isEs));
-    enBtn.setAttribute("aria-pressed", String(!isEs));
+    // Estado activo de los botones
+    const btnEs = document.getElementById("lang-es");
+    const btnEn = document.getElementById("lang-en");
+    if (btnEs) btnEs.classList.toggle("btn--active", currentLang === "es");
+    if (btnEn) btnEn.classList.toggle("btn--active", currentLang === "en");
   }
 
   function initLangToggle() {
-    const esBtn = document.getElementById("lang-es");
-    const enBtn = document.getElementById("lang-en");
+    const btnEs = document.getElementById("lang-es");
+    const btnEn = document.getElementById("lang-en");
+    if (!btnEs || !btnEn) return;
 
-    const initial = getSavedLang() || detectBrowserLang();
+    btnEs.addEventListener("click", () => setLanguage("es"));
+    btnEn.addEventListener("click", () => setLanguage("en"));
+
+    const initial = getSavedLang() || detectBrowserLang() || "es";
     setLanguage(initial, { persist: false });
-
-    if (esBtn) esBtn.addEventListener("click", () => setLanguage("es"));
-    if (enBtn) enBtn.addEventListener("click", () => setLanguage("en"));
   }
 
+  initLangToggle();
+
   // =========================
-  //   APP
+  //   App logic (upload/process)
   // =========================
+  const processBtn = document.getElementById("process-btn");
+  const fileInput = document.getElementById("file-input");
   const dropzone = document.getElementById("dropzone");
   const dropzoneText = document.getElementById("dropzone-text");
-  const fileInput = document.getElementById("file-input");
-  const processBtn = document.getElementById("process-btn");
-  const downloadAudioBtn = document.getElementById("download-btn");
-  const downloadReportBtn = document.getElementById("download-report-btn");
-
-  const playerOriginal = document.getElementById("player-original");
-  const playerProcessed = document.getElementById("player-processed");
-
-  const resultSection = document.getElementById("result-section");
   const statusEl = document.getElementById("status");
   const errorEl = document.getElementById("error-message");
+
+  const resultSection = document.getElementById("result-section");
+  const playerOriginal = document.getElementById("player-original");
+  const playerProcessed = document.getElementById("player-processed");
+  const downloadBtn = document.getElementById("download-btn");
+  const downloadReportBtn = document.getElementById("download-report-btn");
   const analysisEl = document.getElementById("analysis");
 
-  const API_ENDPOINT = `/api/process_audio`;
-  const MAX_MB = 20;
+  let lastProcessedAudioUrl = null;
+  let lastReportUrl = null;
 
-  let selectedFile = null;
-  let processedFileUrl = "";
-  let reportFileUrl = "";
-  let lastOriginalFileName = "";
-
-  function setStatus(text) {
+  function setStatus(key) {
     if (!statusEl) return;
-    statusEl.textContent = text || "";
+    statusEl.textContent = t(key);
   }
 
-  function setError(text) {
+  function showError(key) {
     if (!errorEl) return;
-    errorEl.textContent = text || "";
-    errorEl.style.display = text ? "block" : "none";
+    errorEl.style.display = "block";
+    errorEl.textContent = t(key);
   }
 
-  function clearMessages() {
-    setError("");
-    setStatus("");
+  function clearError() {
+    if (!errorEl) return;
+    errorEl.style.display = "none";
+    errorEl.textContent = "";
   }
 
-  function updateDropzoneText() {
+  function getSelectedMode() {
+    const checked = document.querySelector("input[name='modo']:checked");
+    return checked ? checked.value : "LAPTOP_CELULAR";
+  }
+
+  function isAudioFile(file) {
+    if (!file) return false;
+    return (file.type || "").startsWith("audio/") || /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(file.name);
+  }
+
+  function updateDropzoneText(file) {
     if (!dropzoneText) return;
-    if (selectedFile?.name) {
-      dropzoneText.textContent = t("dropzone.selected", { name: selectedFile.name });
+    if (file) {
+      dropzoneText.textContent = t("dropzone.selected", { name: file.name });
     } else {
       dropzoneText.textContent = t("dropzone.text");
     }
   }
 
-  function resetEstado() {
-    selectedFile = null;
-    processedFileUrl = "";
-    reportFileUrl = "";
-    // lastOriginalFileName lo mantenemos si quieres, pero no afecta
+  // Click en dropzone abre file picker
+  if (dropzone && fileInput) {
+    dropzone.addEventListener("click", () => fileInput.click());
 
-    if (processBtn) processBtn.disabled = true;
-
-    if (playerOriginal) {
-      playerOriginal.removeAttribute("src");
-      playerOriginal.load();
-    }
-    if (playerProcessed) {
-      playerProcessed.removeAttribute("src");
-      playerProcessed.load();
-    }
-
-    if (analysisEl) analysisEl.textContent = "";
-    if (resultSection) resultSection.classList.add("hidden");
-
-    if (dropzone) {
-      dropzone.dataset.filename = "";
-      dropzone.classList.remove("has-file");
-    }
-
-    clearMessages();
-    updateDropzoneText();
-  }
-
-  function isValidAudioFile(file) {
-    if (!file) return false;
-    const typeOk = (file.type || "").startsWith("audio/");
-    const name = (file.name || "").toLowerCase();
-    const extOk = [
-      ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".webm", ".aiff", ".aif",
-    ].some((ext) => name.endsWith(ext));
-    return typeOk || extOk;
-  }
-
-  function validateFile(file) {
-    if (!file) return { ok: false, key: "status.error.noFile" };
-    if (!isValidAudioFile(file)) return { ok: false, key: "status.error.invalidFile" };
-    const mb = file.size / (1024 * 1024);
-    if (mb > MAX_MB) return { ok: false, key: "status.error.tooBig" };
-    return { ok: true };
-  }
-
-  function handleSelectedFile(file) {
-    const v = validateFile(file);
-    if (!v.ok) {
-      setError(t(v.key));
-      return;
-    }
-
-    selectedFile = file;
-    lastOriginalFileName = file.name;
-
-    if (processBtn) processBtn.disabled = false;
-
-    if (dropzone) {
-      dropzone.dataset.filename = file.name;
-      dropzone.classList.add("has-file");
-    }
-
-    setError("");
-    updateDropzoneText();
-  }
-
-  function getSelectedMode() {
-    const el = document.querySelector('input[name="modo"]:checked');
-    return el ? el.value : null;
-  }
-
-  function renderAnalysis(analysis) {
-    if (!analysisEl) return;
-    if (!analysis) {
-      analysisEl.textContent = "";
-      return;
-    }
-    if (typeof analysis === "string") {
-      analysisEl.textContent = analysis;
-      return;
-    }
-    try {
-      analysisEl.textContent = JSON.stringify(analysis, null, 2);
-    } catch (_) {
-      analysisEl.textContent = String(analysis);
-    }
-  }
-
-  function triggerDownload(url, filename) {
-    try {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename || "";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (_) {
-      setError(t("status.error.download"));
-    }
-  }
-
-  // =========================
-  //   Eventos UI
-  // =========================
-  if (fileInput) {
-    fileInput.addEventListener("change", (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (file) handleSelectedFile(file);
-    });
-  }
-
-  if (dropzone) {
-    dropzone.addEventListener("click", (e) => {
-      if (!fileInput) return;
-      if (e.target === fileInput || e.target.tagName === "LABEL") return;
-      fileInput.value = "";
-      fileInput.click();
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dropzone--hover");
     });
 
-    ["dragenter", "dragover"].forEach((ev) => {
-      dropzone.addEventListener(ev, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropzone.classList.add("is-dragover");
-      });
-    });
-
-    ["dragleave", "drop"].forEach((ev) => {
-      dropzone.addEventListener(ev, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropzone.classList.remove("is-dragover");
-      });
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("dropzone--hover");
     });
 
     dropzone.addEventListener("drop", (e) => {
-      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (file) handleSelectedFile(file);
-    });
-  }
+      e.preventDefault();
+      dropzone.classList.remove("dropzone--hover");
 
-  if (processBtn) {
-    processBtn.addEventListener("click", async () => {
-      const v = validateFile(selectedFile);
-      if (!v.ok) {
-        setError(t(v.key));
-        return;
-      }
-
-      setError("");
-      setStatus(t("status.uploading"));
-      processBtn.disabled = true;
-
-      const mode = getSelectedMode();
-
-      try {
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-        if (mode) formData.append("mode", mode);
-
-        setStatus(t("status.processing"));
-
-        const resp = await fetch(API_ENDPOINT, {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!resp.ok) {
-          if (resp.status === 413) {
-            setError(t("status.error.tooBig"));
-          } else {
-            setError(t("status.error.generic"));
-          }
-          setStatus("");
-          processBtn.disabled = false;
-          return;
-        }
-
-        const data = await resp.json();
-
-        // Asumido por tu backend típico:
-        // { original_url, processed_url, report_url, analysis, original_filename }
-        const originalUrl = data.original_url;
-        const processedUrl = data.processed_url;
-        const reportUrl = data.report_url;
-
-        processedFileUrl = processedUrl || "";
-        reportFileUrl = reportUrl || "";
-        lastOriginalFileName = data.original_filename || lastOriginalFileName;
-
-        if (playerOriginal && originalUrl) {
-          playerOriginal.src = originalUrl;
-          playerOriginal.load();
-        }
-        if (playerProcessed && processedUrl) {
-          playerProcessed.src = processedUrl;
-          playerProcessed.load();
-        }
-
-        renderAnalysis(data.analysis);
-
-        if (resultSection) resultSection.classList.remove("hidden");
-
-        setStatus(t("status.done"));
-      } catch (err) {
-        console.error(err);
-        setError(t("status.error.noServer"));
-        setStatus("");
-      } finally {
-        if (processBtn) processBtn.disabled = false;
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (fileInput && file) {
+        fileInput.files = e.dataTransfer.files;
+        updateDropzoneText(file);
+        clearError();
       }
     });
   }
 
-  if (downloadAudioBtn) {
-    downloadAudioBtn.addEventListener("click", () => {
-      if (!processedFileUrl) {
-        setError(t("status.error.generic"));
-        return;
-      }
-      const base = (lastOriginalFileName || "").replace(/\.[^/.]+$/, "");
-      const suggested = base
-        ? `${base}${t("filename.processedSuffix")}`
-        : t("filename.fallbackAudio");
-      triggerDownload(processedFileUrl, suggested);
+  if (fileInput) {
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files && fileInput.files[0];
+      updateDropzoneText(file);
+      clearError();
+    });
+  }
+
+  async function downloadFile(url, filenameFallback) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("download failed");
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      const objectUrl = URL.createObjectURL(blob);
+      a.href = objectUrl;
+      a.download = filenameFallback;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (e) {
+      showError("status.error.download");
+    }
+  }
+
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", () => {
+      if (!lastProcessedAudioUrl) return;
+      downloadFile(lastProcessedAudioUrl, t("filename.fallbackAudio"));
     });
   }
 
   if (downloadReportBtn) {
     downloadReportBtn.addEventListener("click", () => {
-      if (!reportFileUrl) {
-        setError(t("status.error.generic"));
-        return;
-      }
-      const base = (lastOriginalFileName || "").replace(/\.[^/.]+$/, "");
-      const suggested = base
-        ? `${base}${t("filename.reportSuffix")}`
-        : t("filename.fallbackReport");
-      triggerDownload(reportFileUrl, suggested);
+      if (!lastReportUrl) return;
+      downloadFile(lastReportUrl, t("filename.fallbackReport"));
     });
   }
 
-  // =========================
-  //   INIT
-  // =========================
-  initLangToggle(); // localStorage > navegador
-  resetEstado();
-  applyTranslations();
+  async function processAudio() {
+    clearError();
+
+    const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+    if (!file) return showError("status.error.noFile");
+    if (!isAudioFile(file)) return showError("status.error.invalidFile");
+
+    // 20 MB
+    const MAX_BYTES = 20 * 1024 * 1024;
+    if (file.size > MAX_BYTES) return showError("status.error.tooBig");
+
+    setStatus("status.uploading");
+
+    const form = new FormData();
+    form.append("file", file);
+    form.append("modo", getSelectedMode());
+
+    try {
+      setStatus("status.processing");
+
+      const resp = await fetch("/process", { method: "POST", body: form });
+      if (!resp.ok) {
+        if (resp.status >= 500) throw new Error("server");
+        throw new Error("bad request");
+      }
+
+      const data = await resp.json();
+
+      // Backend expected keys: processed_audio_url, original_audio_url, report_url, analysis_html
+      if (playerOriginal && data.original_audio_url) playerOriginal.src = data.original_audio_url;
+      if (playerProcessed && data.processed_audio_url) playerProcessed.src = data.processed_audio_url;
+
+      lastProcessedAudioUrl = data.processed_audio_url || null;
+      lastReportUrl = data.report_url || null;
+
+      if (analysisEl) {
+        analysisEl.innerHTML = data.analysis_html || "";
+      }
+
+      if (resultSection) {
+        resultSection.classList.remove("hidden");
+        resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      setStatus("status.done");
+    } catch (err) {
+      if (String(err).includes("server")) showError("status.error.noServer");
+      else showError("status.error.generic");
+      setStatus("status.idle");
+    }
+  }
+
+  if (processBtn) {
+    processBtn.addEventListener("click", processAudio);
+  }
+
+  // Estado inicial
+  setStatus("status.idle");
+  updateDropzoneText(fileInput && fileInput.files ? fileInput.files[0] : null);
 });
