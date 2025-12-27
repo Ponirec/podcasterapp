@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
 import time
 
+
 import sys
 import types
 import os
@@ -52,26 +53,26 @@ ENABLE_DB_METRICS = _truthy(os.getenv("ENABLE_DB_METRICS", "0"))
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 METRICS_SALT = os.getenv("METRICS_SALT", "").strip() or "change-me"  # cámbialo en Render
 
-# Intentamos soportar psycopg2 (recomendado) o psycopg (v3)
-DB_DRIVER = None
+db_driver = None
 try:
-    import psycopg2  # type: ignore
-    DB_DRIVER = "psycopg2"
-except Exception:
-    try:
-        import psycopg  # type: ignore
-        DB_DRIVER = "psycopg"
-    except Exception:
-        DB_DRIVER = None
+    import psycopg  # psycopg3
+    db_driver = "psycopg"
+except ImportError:
+    psycopg = None
+    db_driver = None
+
+
 
 def db_metrics_ready() -> bool:
     if not ENABLE_DB_METRICS:
         return False
     if not DATABASE_URL:
         return False
-    if DB_DRIVER is None:
+    if db_driver is None:
         return False
     return True
+
+
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS request_metrics (
@@ -128,7 +129,7 @@ def _exec_sql(sql: str, params: Optional[dict] = None) -> None:
         return
 
     try:
-        if DB_DRIVER == "psycopg2":
+        if db_driver == "psycopg2":
             import psycopg2  # type: ignore
             conn = psycopg2.connect(DATABASE_URL)
             conn.autocommit = True
@@ -138,7 +139,7 @@ def _exec_sql(sql: str, params: Optional[dict] = None) -> None:
             finally:
                 conn.close()
 
-        elif DB_DRIVER == "psycopg":
+        elif db_driver == "psycopg":
             import psycopg  # type: ignore
             with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
                 with conn.cursor() as cur:
@@ -149,7 +150,7 @@ def _exec_sql(sql: str, params: Optional[dict] = None) -> None:
 
 def init_db() -> None:
     if not db_metrics_ready():
-        if ENABLE_DB_METRICS and DB_DRIVER is None:
+        if ENABLE_DB_METRICS and d is None:
             logger.warning("[DB_METRICS] ENABLE_DB_METRICS=1 pero no hay driver instalado (psycopg2/psycopg).")
         return
     _exec_sql(CREATE_TABLE_SQL)
@@ -220,7 +221,7 @@ async def health():
     return {
         "ok": True,
         "db_metrics_enabled": ENABLE_DB_METRICS,
-        "db_driver": DB_DRIVER,
+        "db_driver": db_driver,
         "db_url_present": bool(DATABASE_URL),
     }
 
