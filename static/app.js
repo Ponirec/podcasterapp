@@ -47,22 +47,58 @@ document.addEventListener("DOMContentLoaded", () => {
       "actions.downloadAudio": "Descargar audio procesado",
       "actions.downloadReport": "Descargar informe detallado",
 
+      // ✅ Título “planes” (tu versión anterior)
       "section3.title": "Planes (próximamente)",
-      "pricing.subtitle":
+
+      // ✅ CLAVES QUE TU HTML ESTÁ USANDO (antes salían como texto literal)
+      "pricing.title": "Planes (próximamente)",
+      "pricing.intro":
         "Hoy estás usando la versión beta gratuita (plan Free). Más adelante podrás elegir entre estos planes, según el nivel de tu podcast y el tipo de acompañamiento que necesites.",
+      "pricing.free": "Free",
+      "pricing.plus": "Plus",
+      "pricing.pro": "Pro",
+
+      // Cards
       "pricing.free.title": "Free",
       "pricing.free.price": "Gratis",
+      "pricing.free.li1": "Ideal para probar la app y mejorar tus primeras grabaciones.",
+      "pricing.free.li2": "Procesamiento automático de audio",
+      "pricing.free.li3": "Informe de calidad con recomendaciones básicas",
+
       "pricing.plus.title": "Plus",
       "pricing.plus.price": "USD $9 / mes",
+      "pricing.plus.li1": "Para podcasters que suben episodios completos.",
+      "pricing.plus.li2": "Todo lo del plan Free",
+      "pricing.plus.li3": "Archivos hasta ~60 minutos (o ~100 MB)",
+
       "pricing.pro.title": "Pro",
       "pricing.pro.price": "USD $55 / mes",
+      "pricing.pro.li1": "Asesoría 1:1 + mastering profesional.",
+      "pricing.pro.li2": "Todo lo del plan Plus",
+      "pricing.pro.li3": "1 sesión mensual 1:1 para revisar tu sonido y setup",
+      "pricing.pro.li4": "1 episodio al mes masterizado manualmente en estudio",
+      "pricing.pro.li5": "Descuento en masters adicionales",
+      "pricing.pro.li6": "Ideal para podcasters que quieren subir de nivel",
+
+      // Botones “soon”
+      "pricing.btn.soon": "Disponible pronto",
+
+      "pricing.subtitle": // compat con tu versión anterior (si se usa en HTML)
+        "Hoy estás usando la versión beta gratuita (plan Free). Más adelante podrás elegir entre estos planes, según el nivel de tu podcast y el tipo de acompañamiento que necesites.",
+
       "pricing.disclaimer":
         "Los precios y características son referenciales (valores aprox. en USD) y pueden ajustarse según uso real y feedback.",
+
+      // Analysis UI
+      "analysis.summaryTitle": "Resumen",
+      "analysis.detailsTitle": "Ver detalles (JSON)",
+
       "filename.processedSuffix": "_PROCESADO.wav",
       "filename.reportSuffix": "_PROCESADO_report.txt",
       "filename.fallbackAudio": "audio_procesado.wav",
       "filename.fallbackReport": "informe_audio.txt",
     },
+
     en: {
       "header.title": "Improve your audio",
       "header.subtitle":
@@ -103,17 +139,51 @@ document.addEventListener("DOMContentLoaded", () => {
       "actions.downloadAudio": "Download processed audio",
       "actions.downloadReport": "Download detailed report",
 
+      // ✅ Tu versión anterior
       "section3.title": "Plans (coming soon)",
-      "pricing.subtitle":
+
+      // ✅ CLAVES QUE TU HTML ESTÁ USANDO
+      "pricing.title": "Plans (coming soon)",
+      "pricing.intro":
         "You're currently using the free beta version (Free plan). Later you'll be able to choose between these plans depending on your podcast level and the kind of support you need.",
+      "pricing.free": "Free",
+      "pricing.plus": "Plus",
+      "pricing.pro": "Pro",
+
+      // Cards
       "pricing.free.title": "Free",
       "pricing.free.price": "Free",
+      "pricing.free.li1": "Great for testing the app and improving your first recordings.",
+      "pricing.free.li2": "Automatic audio processing",
+      "pricing.free.li3": "Quality report with basic recommendations",
+
       "pricing.plus.title": "Plus",
       "pricing.plus.price": "USD $9 / month",
+      "pricing.plus.li1": "For podcasters uploading full episodes.",
+      "pricing.plus.li2": "Everything in Free",
+      "pricing.plus.li3": "Files up to ~60 minutes (or ~100 MB)",
+
       "pricing.pro.title": "Pro",
       "pricing.pro.price": "USD $55 / month",
+      "pricing.pro.li1": "1:1 guidance + professional mastering.",
+      "pricing.pro.li2": "Everything in Plus",
+      "pricing.pro.li3": "1 monthly 1:1 session to review your sound and setup",
+      "pricing.pro.li4": "1 episode/month manually mastered in studio",
+      "pricing.pro.li5": "Discount on additional masters",
+      "pricing.pro.li6": "Ideal if you want to level up",
+
+      "pricing.btn.soon": "Available soon",
+
+      "pricing.subtitle":
+        "You're currently using the free beta version (Free plan). Later you'll be able to choose between these plans depending on your podcast level and the kind of support you need.",
+
       "pricing.disclaimer":
         "Prices and features are indicative (approx. USD) and may change based on real usage and feedback.",
+
+      // Analysis UI
+      "analysis.summaryTitle": "Summary",
+      "analysis.detailsTitle": "View details (JSON)",
+
       "filename.processedSuffix": "_PROCESSED.wav",
       "filename.reportSuffix": "_PROCESSED_report.txt",
       "filename.fallbackAudio": "processed_audio.wav",
@@ -123,7 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function t(key, vars = {}) {
     const table = translations[currentLang] || translations.es;
-    let s = table[key] ?? key;
+    let s = table[key] ?? key; // si falta, devuelve el key (y así lo ves)
     for (const [k, v] of Object.entries(vars)) {
       s = s.replaceAll(`{${k}}`, String(v));
     }
@@ -132,11 +202,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function applyTranslations() {
     document.documentElement.lang = currentLang;
+
     document.querySelectorAll("[data-i18n]").forEach((el) => {
       const key = el.getAttribute("data-i18n");
       if (!key) return;
       el.textContent = t(key);
     });
+
     updateLangToggleUI();
     updateDropzoneText(); // no pisar el nombre del archivo seleccionado
   }
@@ -250,7 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
       playerProcessed.load();
     }
 
-    if (analysisEl) analysisEl.textContent = "";
+    if (analysisEl) analysisEl.innerHTML = "";
     if (resultSection) resultSection.classList.add("hidden");
 
     if (dropzone) {
@@ -317,18 +389,87 @@ document.addEventListener("DOMContentLoaded", () => {
     return el ? el.value : "LAPTOP_CELULAR";
   }
 
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function buildHumanSummary(analysis) {
+    // Intento “amigable” sin asumir estructura exacta
+    const lines = [];
+    if (!analysis || typeof analysis !== "object") return lines;
+
+    const pick = (k) => {
+      const v = analysis[k];
+      if (v === undefined || v === null) return;
+      if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+        lines.push(`${k}: ${v}`);
+      }
+    };
+
+    // campos típicos (si existen)
+    pick("quality_score");
+    pick("lufs");
+    pick("true_peak");
+    pick("noise_floor");
+    pick("sibilance");
+    pick("clipping");
+    pick("recording_type");
+    pick("duration_sec");
+
+    // arrays típicos
+    if (Array.isArray(analysis.recommendations) && analysis.recommendations.length) {
+      lines.push("");
+      lines.push("recommendations:");
+      for (const r of analysis.recommendations.slice(0, 8)) {
+        lines.push(`- ${typeof r === "string" ? r : JSON.stringify(r)}`);
+      }
+    }
+
+    return lines;
+  }
+
   function renderAnalysis(analysis) {
     if (!analysisEl) return;
+
     if (!analysis) {
-      analysisEl.textContent = "";
+      analysisEl.innerHTML = "";
       return;
     }
+
+    // si viene string, lo dejamos simple
     if (typeof analysis === "string") {
       analysisEl.textContent = analysis;
       return;
     }
+
+    // objeto => resumen + details con JSON
     try {
-      analysisEl.textContent = JSON.stringify(analysis, null, 2);
+      const summaryLines = buildHumanSummary(analysis);
+      const summaryHtml = summaryLines.length
+        ? `<div style="margin-bottom:10px;">
+             <div style="font-weight:600; margin-bottom:6px;">${escapeHtml(
+               t("analysis.summaryTitle")
+             )}</div>
+             <pre style="white-space:pre-wrap; margin:0;">${escapeHtml(
+               summaryLines.join("\n")
+             )}</pre>
+           </div>`
+        : "";
+
+      const json = escapeHtml(JSON.stringify(analysis, null, 2));
+
+      analysisEl.innerHTML = `
+        ${summaryHtml}
+        <details>
+          <summary style="cursor:pointer;">${escapeHtml(t("analysis.detailsTitle"))}</summary>
+          <pre style="white-space:pre-wrap; margin-top:8px;">${json}</pre>
+        </details>
+      `;
     } catch {
       analysisEl.textContent = String(analysis);
     }

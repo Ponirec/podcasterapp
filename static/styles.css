@@ -309,3 +309,7 @@ audio {
   background: rgba(255, 255, 255, 0.10);
 }
 
+.report-box { text-align: left; margin-top: 10px; }
+.report-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.35; opacity: 0.95; }
+.report-list li { margin: 6px 0; }
+
