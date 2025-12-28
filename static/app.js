@@ -344,6 +344,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let lastProcessedAudioUrl = null;
   let lastReportUrl = null;
 
+  // ✅ FIX: archivo seleccionado “real”, independiente de fileInput.files
+  let selectedFile = null;
+
   function setStatus(key) {
     if (!statusEl) return;
     statusEl.textContent = t(key);
@@ -382,7 +385,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Click en dropzone abre file picker
   if (dropzone && fileInput) {
-    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("click", (e) => {
+      // si el click fue directamente sobre el input, no duplicar el click
+      if (e.target === fileInput) return;
+
+      // ✅ fuerza a que "change" dispare incluso si eliges el mismo archivo
+      fileInput.value = "";
+      fileInput.click();
+    });
 
     dropzone.addEventListener("dragover", (e) => {
       e.preventDefault();
@@ -398,8 +408,9 @@ document.addEventListener("DOMContentLoaded", () => {
       dropzone.classList.remove("dropzone--hover");
 
       const file = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (fileInput && file) {
-        fileInput.files = e.dataTransfer.files;
+      if (file) {
+        // ✅ NO tocar fileInput.files (en muchos browsers es read-only/inconsistente)
+        selectedFile = file;
         updateDropzoneText(file);
         clearError();
       }
@@ -409,7 +420,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (fileInput) {
     fileInput.addEventListener("change", () => {
       const file = fileInput.files && fileInput.files[0];
-      updateDropzoneText(file);
+      selectedFile = file || null;
+      updateDropzoneText(selectedFile);
       clearError();
     });
   }
@@ -449,7 +461,10 @@ document.addEventListener("DOMContentLoaded", () => {
   async function processAudio() {
     clearError();
 
-    const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+    // ✅ toma primero el archivo guardado por drop/picker
+    const file =
+      selectedFile || (fileInput && fileInput.files ? fileInput.files[0] : null);
+
     if (!file) return showError("status.error.noFile");
     if (!isAudioFile(file)) return showError("status.error.invalidFile");
 
@@ -503,6 +518,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Estado inicial
+  selectedFile = fileInput && fileInput.files ? fileInput.files[0] : null;
   setStatus("status.idle");
-  updateDropzoneText(fileInput && fileInput.files ? fileInput.files[0] : null);
+  updateDropzoneText(selectedFile);
 });
