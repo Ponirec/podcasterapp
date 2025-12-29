@@ -118,60 +118,74 @@
     <script src="/static/app.js"></script>
 
     <section class="pricing" id="planes">
-      <h2 class="pricing-title" data-i18n="pricing.title">Planes (próximamente)</h2>
-      <p class="pricing-intro" data-i18n="pricing.intro">
-        Hoy estás usando la versión beta gratuita (plan Free). Más adelante podrás elegir entre estos planes,
-        según el nivel de tu podcast y el tipo de acompañamiento que necesites.
+  <h2 class="pricing-title" data-i18n="pricing.title">Planes (próximamente)</h2>
+  <p class="pricing-intro" data-i18n="pricing.intro">
+    Hoy estás usando la versión beta gratuita (plan Free). Más adelante podrás elegir entre estos planes,
+    según el nivel de tu podcast y el tipo de acompañamiento que necesites.
+  </p>
+
+  <div class="pricing-grid">
+    <!-- Plan Free (ACTUAL) -->
+    <article class="pricing-card pricing-card--highlight" data-plan="free">
+      <h3 class="pricing-name" data-i18n="pricing.free.name">Free</h3>
+      <p class="pricing-price" data-i18n="pricing.free.price">Gratis</p>
+      <p class="pricing-tagline" data-i18n="pricing.free.tagline">
+        Ideal para probar la app y mejorar tus primeras grabaciones.
       </p>
 
-      <div class="pricing-grid">
-        <!-- Plan Free -->
-        <article class="pricing-card">
-          <h3 class="pricing-name">Free</h3>
-          <p class="pricing-price" data-i18n="pricing.free.price">Gratis</p>
-          <p class="pricing-tagline" data-i18n="pricing.free.tagline">Ideal para probar la app y mejorar tus primeras grabaciones.</p>
-          <ul class="pricing-list">
-            <li data-i18n="pricing.free.li1">Procesamiento automático de audio</li>
-            <li data-i18n="pricing.free.li2">Informe de calidad con recomendaciones básicas</li>
-          </ul>
-          <button class="pricing-btn" disabled data-i18n="pricing.btn.soon">Disponible pronto</button>
-          <p class="pricing-note" data-i18n="pricing.note.free">Este es el plan que estás usando ahora.</p>
-        </article>
+      <ul class="pricing-list">
+        <li data-i18n="pricing.free.li1">Procesamiento automático de audio</li>
+        <li data-i18n="pricing.free.li2">Informe de calidad con recomendaciones básicas</li>
+      </ul>
 
-        <!-- Plan Plus -->
-        <article class="pricing-card">
-          <h3 class="pricing-name">Plus</h3>
-          <p class="pricing-price" data-i18n="pricing.plus.price">USD $9 / mes</p>
-          <p class="pricing-tagline" data-i18n="pricing.plus.tagline">Para episodios completos + mejoras de voz más finas.</p>
-          <ul class="pricing-list">
-            <li data-i18n="pricing.plus.li1">Procesamiento de episodios completos</li>
-            <li data-i18n="pricing.plus.li2">Informe más detallado + recomendaciones avanzadas</li>
-          </ul>
-          <button class="pricing-btn" disabled data-i18n="pricing.btn.soon">Disponible pronto</button>
-          <p class="pricing-note" data-i18n="pricing.note.plus">Primero se abrirá para un grupo reducido de creadores.</p>
-        </article>
+      <button class="pricing-btn pricing-btn--current" disabled data-i18n="pricing.free.btn">
+        Plan actual
+      </button>
 
-        <!-- Plan Pro -->
-        <article class="pricing-card">
-          <h3 class="pricing-name">Pro</h3>
-          <p class="pricing-price" data-i18n="pricing.pro.price">USD $55 / mes</p>
-          <p class="pricing-tagline" data-i18n="pricing.pro.tagline">Asesoría 1:1 + mastering profesional.</p>
-          <ul class="pricing-list">
-            <li data-i18n="pricing.pro.li1">Todo lo del plan Plus</li>
-            <li data-i18n="pricing.pro.li2">1 sesión mensual 1:1 para revisar tu sonido y setup</li>
-            <li data-i18n="pricing.pro.li3">1 episodio al mes masterizado manualmente en estudio</li>
-            <li data-i18n="pricing.pro.li4">Descuento en masters adicionales</li>
-            <li data-i18n="pricing.pro.li5">Ideal para podcasters que quieren subir de nivel</li>
-          </ul>
-          <button class="pricing-btn" disabled data-i18n="pricing.btn.soon">Disponible pronto</button>
-          <p class="pricing-note" data-i18n="pricing.note.pro">Primero se abrirá para un grupo reducido de creadores.</p>
-        </article>
-      </div>
+      <p class="pricing-note" data-i18n="pricing.note.free">Este es el plan que estás usando ahora.</p>
+    </article>
 
-      <p class="pricing-disclaimer" data-i18n="pricing.disclaimer">
-        Los precios y características son <strong>referenciales</strong> (valores aprox. en USD) y pueden ajustarse según el uso real
-        y el feedback que recibamos durante esta etapa beta.
+    <!-- Plan Plus -->
+    <article class="pricing-card" data-plan="plus">
+      <h3 class="pricing-name" data-i18n="pricing.plus.name">Plus</h3>
+      <p class="pricing-price" data-i18n="pricing.plus.price">USD $9 / mes</p>
+      <p class="pricing-tagline" data-i18n="pricing.plus.tagline">
+        Para episodios completos + mejoras de voz más finas.
       </p>
-    </section>
+
+      <ul class="pricing-list">
+        <li data-i18n="pricing.plus.li1">Procesamiento de episodios completos</li>
+        <li data-i18n="pricing.plus.li2">Informe más detallado + recomendaciones avanzadas</li>
+      </ul>
+
+      <button class="pricing-btn" disabled data-i18n="pricing.btn.soon">Disponible pronto</button>
+      <p class="pricing-note" data-i18n="pricing.note.plus">Primero se abrirá para un grupo reducido de creadores.</p>
+    </article>
+
+    <!-- Plan Pro -->
+    <article class="pricing-card" data-plan="pro">
+      <h3 class="pricing-name" data-i18n="pricing.pro.name">Pro</h3>
+      <p class="pricing-price" data-i18n="pricing.pro.price">USD $55 / mes</p>
+      <p class="pricing-tagline" data-i18n="pricing.pro.tagline">Asesoría 1:1 + mastering profesional.</p>
+
+      <ul class="pricing-list">
+        <li data-i18n="pricing.pro.li1">Todo lo del plan Plus</li>
+        <li data-i18n="pricing.pro.li2">1 sesión mensual 1:1 para revisar tu sonido y setup</li>
+        <li data-i18n="pricing.pro.li3">1 episodio al mes masterizado manualmente en estudio</li>
+        <li data-i18n="pricing.pro.li4">Descuento en masters adicionales</li>
+        <li data-i18n="pricing.pro.li5">Ideal para podcasters que quieren subir de nivel</li>
+      </ul>
+
+      <button class="pricing-btn" disabled data-i18n="pricing.btn.soon">Disponible pronto</button>
+      <p class="pricing-note" data-i18n="pricing.note.pro">Primero se abrirá para un grupo reducido de creadores.</p>
+    </article>
+  </div>
+
+  <p class="pricing-disclaimer" data-i18n="pricing.disclaimer">
+    Los precios y características son <strong>referenciales</strong> (valores aprox. en USD) y pueden ajustarse según el uso real
+    y el feedback que recibamos durante esta etapa beta.
+  </p>
+</section>
+
   </body>
 </html>
