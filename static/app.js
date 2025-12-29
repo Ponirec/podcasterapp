@@ -477,6 +477,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const form = new FormData();
     form.append("file", file);
     form.append("modo", getSelectedMode());
+    form.append("lang", currentLang);
+
 
     try {
       setStatus("status.processing");

@@ -48,10 +48,9 @@ def _truthy(v: Optional[str]) -> bool:
 
 ENABLE_DB_METRICS = _truthy(os.getenv("ENABLE_DB_METRICS", "0"))
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-METRICS_SALT = os.getenv("METRICS_SALT", "").strip() or "change-me"  # cámbialo en Render
+METRICS_SALT = os.getenv("METRICS_SALT", "").strip() or "change-me"
 
 db_driver = None
-# psycopg3
 try:
     import psycopg  # type: ignore
     db_driver = "psycopg"
@@ -59,7 +58,6 @@ except ImportError:
     psycopg = None  # type: ignore
     db_driver = None
 
-# psycopg2 (opcional)
 try:
     import psycopg2  # type: ignore
     if db_driver is None:
@@ -123,16 +121,12 @@ def _anonymize_ip(ip: Optional[str]) -> Optional[str]:
     if not ip:
         return None
     h = hashlib.sha256((METRICS_SALT + "|" + ip).encode("utf-8")).hexdigest()
-    return h[:16]  # corto y suficiente para contar únicos sin guardar IP real
+    return h[:16]
 
 
 def _exec_sql(sql: str, params: Optional[dict] = None) -> None:
-    """
-    Ejecuta SQL. Si falla, solo loggea (no rompe flujo).
-    """
     if not db_metrics_ready():
         return
-
     try:
         if db_driver == "psycopg2":
             if psycopg2 is None:
@@ -159,9 +153,7 @@ def _exec_sql(sql: str, params: Optional[dict] = None) -> None:
 def init_db() -> None:
     if not db_metrics_ready():
         if ENABLE_DB_METRICS and db_driver is None:
-            logger.warning(
-                "[DB_METRICS] ENABLE_DB_METRICS=1 pero no hay driver instalado (psycopg2/psycopg)."
-            )
+            logger.warning("[DB_METRICS] ENABLE_DB_METRICS=1 pero no hay driver instalado (psycopg2/psycopg).")
         return
     _exec_sql(CREATE_TABLE_SQL)
     logger.info("[DB_METRICS] Tabla request_metrics lista.")
@@ -191,6 +183,116 @@ MAX_FILE_SIZE_MB = 20
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 # =========================
+#   i18n backend (report + resumen)
+# =========================
+SUPPORTED_LANGS = {"es", "en"}
+
+def norm_lang(lang: Optional[str]) -> str:
+    l = (lang or "").strip().lower()
+    return l if l in SUPPORTED_LANGS else "es"
+
+def mode_labels(mode_code: str) -> Dict[str, str]:
+    if mode_code == "MICROFONO_EXTERNO":
+        return {
+            "es": "Micrófono externo (USB / interfaz)",
+            "en": "External microphone (USB / interface)",
+        }
+    return {
+        "es": "Laptop / Celular",
+        "en": "Laptop / Phone",
+    }
+
+def sala_labels(sala_code: str) -> Dict[str, str]:
+    m = {
+        "very_controlled": {
+            "es": "muy controlada (poca sala perceptible: micrófono muy cerca o espacio con buena absorción)",
+            "en": "very controlled (little room sound: close mic or well-treated space)",
+        },
+        "controlled": {
+            "es": "bastante controlada (pieza amoblada con varias cosas blandas)",
+            "en": "quite controlled (furnished room with soft items)",
+        },
+        "reflective": {
+            "es": "con bastante reflexión (típico living o pieza con poco tratamiento)",
+            "en": "fairly reflective (typical room with little treatment)",
+        },
+        "very_live": {
+            "es": "muy viva / con mucha reflexión (espacio duro o casi vacío, eco marcado)",
+            "en": "very live / reflective (hard or mostly empty space, noticeable echo)",
+        },
+    }
+    return m.get(sala_code, m["controlled"])
+
+def clip_labels(clip_code: str) -> Dict[str, str]:
+    m = {
+        "clipping_detected": {
+            "es": "Se detectan picos muy cercanos al máximo digital de forma repetida. Es probable que haya distorsión/clip en la grabación original.",
+            "en": "Repeated peaks very close to 0 dBFS were detected. It's likely there is digital distortion/clipping in the original recording.",
+        },
+        "near_clipping": {
+            "es": "Tu señal llega muy cerca del máximo digital. No se ve clip claro, pero estás al límite: conviene bajar un poco la ganancia.",
+            "en": "Your signal gets very close to the digital ceiling. No clear clipping, but you're on the edge: lower the gain a bit.",
+        },
+        "no_clipping": {
+            "es": "No se detectan señales claras de clip digital en la grabación.",
+            "en": "No clear signs of digital clipping were detected.",
+        },
+    }
+    return m.get(clip_code, m["no_clipping"])
+
+def tr(lang: str, key: str) -> str:
+    lang = norm_lang(lang)
+    D = {
+        "es": {
+            "report.title": "=== Informe de procesamiento de audio ===",
+            "report.file": "Archivo",
+            "report.summary": "== Resumen general ==",
+            "report.keydata": "== Datos clave ==",
+            "report.clip_comment": "== Comentario sobre clipping ==",
+            "report.trim_note": "Como parte del proceso, recortamos automáticamente un pequeño tramo al inicio y, cuando el audio es lo suficientemente largo, otro pequeño tramo al final para limpiar clics, ruidos de inicio/stop y silencios innecesarios.",
+            "k.mode": "Modo",
+            "k.room": "Sala",
+            "k.noise": "Ruido estimado",
+            "k.orig": "Nivel de voz original",
+            "k.final": "Nivel de voz final",
+            "k.snr": "Relación señal/ruido aproximada",
+            "k.peak": "Pico máximo aproximado",
+            "k.crest": "Crest factor aproximado",
+            "k.clip": "Clips / distorsión digital",
+            "k.score": "Puntaje de calidad",
+            "clip.prob": "Probables",
+            "clip.none": "No se detectan claros indicios",
+            "html.title": "Resumen",
+            "html.clip_yes": "Probable",
+            "html.clip_no": "No se detecta claro",
+        },
+        "en": {
+            "report.title": "=== Audio processing report ===",
+            "report.file": "File",
+            "report.summary": "== General summary ==",
+            "report.keydata": "== Key data ==",
+            "report.clip_comment": "== Clipping comment ==",
+            "report.trim_note": "As part of the process, we automatically trim a short segment at the beginning and, when the audio is long enough, another short segment at the end to clean clicks, start/stop noises, and unnecessary silences.",
+            "k.mode": "Mode",
+            "k.room": "Room",
+            "k.noise": "Estimated noise floor",
+            "k.orig": "Original voice level",
+            "k.final": "Final voice level",
+            "k.snr": "Approx. signal-to-noise ratio",
+            "k.peak": "Approx. peak level",
+            "k.crest": "Approx. crest factor",
+            "k.clip": "Clips / digital distortion",
+            "k.score": "Quality score",
+            "clip.prob": "Likely",
+            "clip.none": "No clear signs detected",
+            "html.title": "Summary",
+            "html.clip_yes": "Likely",
+            "html.clip_no": "No clear signs",
+        },
+    }
+    return D.get(lang, D["es"]).get(key, key)
+
+# =========================
 #   APP FASTAPI + CORS
 # =========================
 app = FastAPI()
@@ -208,7 +310,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Servir /media y /static desde FastAPI
 app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -216,7 +317,6 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 def _startup():
     init_db()
 
-# Ruta raíz: sirve index.html
 @app.get("/", response_class=HTMLResponse)
 async def root():
     index_path = STATIC_DIR / "index.html"
@@ -239,7 +339,6 @@ async def health():
 #   LÓGICA DE AUDIO
 # =========================
 def analizar_audio(audio: AudioSegment) -> Dict[str, Any]:
-    """Devuelve métricas básicas del audio original, índice de sala, SNR y clipping."""
     dur_ms = len(audio)
     nivel_dbfs = float(audio.dBFS) if audio.dBFS != float("-inf") else -90.0
 
@@ -260,18 +359,21 @@ def analizar_audio(audio: AudioSegment) -> Dict[str, Any]:
     ruido_estimado = max(ruido_estimado, -80.0)
     snr = nivel_dbfs - ruido_estimado
 
+    # Sala -> code + textos por idioma
     if snr >= 55 and ruido_estimado <= -75:
+        sala_code = "very_controlled"
         sala_indice = 0.1
-        sala_desc = "muy controlada (poca sala perceptible: micrófono muy cerca o espacio con buena absorción)"
     elif snr >= 35 and ruido_estimado <= -60:
+        sala_code = "controlled"
         sala_indice = 0.4
-        sala_desc = "bastante controlada (pieza amoblada con varias cosas blandas)"
     elif snr >= 20:
+        sala_code = "reflective"
         sala_indice = 0.7
-        sala_desc = "con bastante reflexión (típico living o pieza con poco tratamiento)"
     else:
+        sala_code = "very_live"
         sala_indice = 1.0
-        sala_desc = "muy viva / con mucha reflexión (espacio duro o casi vacío, eco marcado)"
+
+    sala_txt = sala_labels(sala_code)
 
     sample_width = audio.sample_width
     max_possible = float((1 << (8 * sample_width - 1)) - 1)
@@ -292,38 +394,40 @@ def analizar_audio(audio: AudioSegment) -> Dict[str, Any]:
     clip_detectado = (peak_ratio > 0.985) and (clip_ratio > 0.0005)
 
     if clip_detectado:
-        clip_desc = (
-            "Se detectan picos muy cercanos al máximo digital de forma repetida. "
-            "Es probable que haya algo de distorsión/clip en la grabación original."
-        )
+        clip_code = "clipping_detected"
     elif peak_ratio > 0.96:
-        clip_desc = (
-            "Tu señal llega muy cerca del máximo digital. No se ve clip claro, "
-            "pero estás al límite: conviene bajar un poco la ganancia."
-        )
+        clip_code = "near_clipping"
     else:
-        clip_desc = "No se detectan señales claras de clip digital en la grabación."
+        clip_code = "no_clipping"
+
+    clip_txt = clip_labels(clip_code)
 
     return {
-        "sala_descripcion": sala_desc,
-        "sala_indice": round(sala_indice, 2),
-        "ruido_estimado_dbfs": round(ruido_estimado, 1),
-        "nivel_original_dbfs": round(nivel_dbfs, 1),
-        "snr_db": round(snr, 1),
-        "peak_dbfs": round(peak_db, 1),
-        "crest_factor_db": round(crest_factor, 1),
-        "clip_detectado": clip_detectado,
-        "clip_ratio": round(clip_ratio, 5),
-        "clip_descripcion": clip_desc,
+        "sala_code": sala_code,
+        "sala_indice": round(float(sala_indice), 2),
+        "sala_descripcion_es": sala_txt["es"],
+        "sala_descripcion_en": sala_txt["en"],
+        "ruido_estimado_dbfs": round(float(ruido_estimado), 1),
+        "nivel_original_dbfs": round(float(nivel_dbfs), 1),
+        "snr_db": round(float(snr), 1),
+
+        "peak_dbfs": round(float(peak_db), 1),
+        "crest_factor_db": round(float(crest_factor), 1),
+
+        "clip_detectado": bool(clip_detectado),
+        "clip_ratio": round(float(clip_ratio), 5),
+        "clip_code": clip_code,
+        "clip_descripcion_es": clip_txt["es"],
+        "clip_descripcion_en": clip_txt["en"],
     }
 
-def calcular_quality(a: Dict[str, Any], modo: str) -> Tuple[int, str]:
+def calcular_quality(a: Dict[str, Any], mode_code: str) -> Tuple[int, str, str]:
     score = 45
 
-    snr = a.get("snr_db", 0.0)
-    sala = a.get("sala_indice", 0.5)
-    nivel_orig = a.get("nivel_original_dbfs", -24.0)
-    clip = a.get("clip_detectado", False)
+    snr = float(a.get("snr_db", 0.0))
+    sala = float(a.get("sala_indice", 0.5))
+    nivel_orig = float(a.get("nivel_original_dbfs", -24.0))
+    clip = bool(a.get("clip_detectado", False))
 
     snr_clamped = max(10.0, min(40.0, snr))
     snr_contrib = (snr_clamped - 10.0) * (20.0 / 30.0)
@@ -342,25 +446,30 @@ def calcular_quality(a: Dict[str, Any], modo: str) -> Tuple[int, str]:
         score -= 30
         score -= snr_contrib * 0.3
 
-    if "Laptop / Celular" in modo:
+    if mode_code == "LAPTOP_CELULAR":
         score -= 5
-    elif "Micrófono externo" in modo:
+    else:
         score += 5
 
     score = int(max(0, min(100, round(score))))
 
+    # label por idioma
     if score < 40:
-        label = "Necesita bastante trabajo antes de publicar"
+        label_es = "Necesita bastante trabajo antes de publicar"
+        label_en = "Needs significant work before publishing"
     elif score < 70:
-        label = "Aceptable, pero con margen de mejora"
+        label_es = "Aceptable, pero con margen de mejora"
+        label_en = "Acceptable, but with room to improve"
     elif score < 85:
-        label = "Listo para podcast con pequeños ajustes"
+        label_es = "Listo para podcast con pequeños ajustes"
+        label_en = "Podcast-ready with small tweaks"
     else:
-        label = "Nivel muy sólido / casi profesional"
+        label_es = "Nivel muy sólido / casi profesional"
+        label_en = "Very solid / near professional"
 
-    return score, label
+    return score, label_es, label_en
 
-def procesar_audio_core(original_path: Path, modo: str) -> Tuple[Path, Dict[str, Any]]:
+def procesar_audio_core(original_path: Path, mode_code: str) -> Tuple[Path, Dict[str, Any]]:
     audio = AudioSegment.from_file(original_path)
     analisis = analizar_audio(audio)
 
@@ -378,24 +487,30 @@ def procesar_audio_core(original_path: Path, modo: str) -> Tuple[Path, Dict[str,
 
     audio_proc_base = audio_proc_base.high_pass_filter(80)
     audio_proc = effects.normalize(audio_proc_base)
-
-    # pequeño fade out global al final
     audio_proc = audio_proc.fade_out(120)
 
     analisis["nivel_final_dbfs"] = round(
         float(audio_proc.dBFS) if audio_proc.dBFS != float("-inf") else -90.0, 1
     )
-    analisis["modo"] = (
-        "Laptop / Celular"
-        if modo == "LAPTOP_CELULAR"
-        else "Micrófono externo (USB / interfaz)"
-    )
+
+    # Mantener code + labels
+    mode_code = "MICROFONO_EXTERNO" if mode_code == "MICROFONO_EXTERNO" else "LAPTOP_CELULAR"
+    analisis["mode_code"] = mode_code
+    mlabels = mode_labels(mode_code)
+    analisis["modo_es"] = mlabels["es"]
+    analisis["modo_en"] = mlabels["en"]
+
+    # compat: "modo" (lo usamos en métricas/legacy) lo dejamos en ES
+    analisis["modo"] = analisis["modo_es"]
+
     analisis["duracion_original_s"] = round(dur_ms / 1000.0, 2)
     analisis["duracion_procesada_s"] = round(len(audio_proc) / 1000.0, 2)
 
-    quality_score, quality_label = calcular_quality(analisis, analisis["modo"])
-    analisis["quality_score"] = quality_score
-    analisis["quality_label"] = quality_label
+    quality_score, q_es, q_en = calcular_quality(analisis, mode_code)
+    analisis["quality_score"] = int(quality_score)
+    analisis["quality_label_es"] = q_es
+    analisis["quality_label_en"] = q_en
+    analisis["quality_label"] = q_es  # compat
 
     processed_name = f"{original_path.stem}_PROCESADO.wav"
     processed_path = PROCESSED_DIR / processed_name
@@ -403,77 +518,88 @@ def procesar_audio_core(original_path: Path, modo: str) -> Tuple[Path, Dict[str,
 
     return processed_path, analisis
 
-def construir_informe_texto(nombre_original: str, a: Dict[str, Any]) -> str:
-    lineas = []
-    lineas.append("=== Informe de procesamiento de audio ===")
-    lineas.append("")
-    lineas.append(f"Archivo: {nombre_original}")
-    lineas.append("")
-    lineas.append("== Resumen general ==")
+def construir_informe_texto(nombre_original: str, a: Dict[str, Any], lang: str) -> str:
+    lang = norm_lang(lang)
 
-    delta_nivel = a["nivel_final_dbfs"] - a["nivel_original_dbfs"]
+    modo = a["modo_en"] if lang == "en" else a["modo_es"]
+    sala_desc = a["sala_descripcion_en"] if lang == "en" else a["sala_descripcion_es"]
+    clip_desc = a["clip_descripcion_en"] if lang == "en" else a["clip_descripcion_es"]
+    quality_label = a["quality_label_en"] if lang == "en" else a["quality_label_es"]
 
-    lineas.append(
-        f"Procesamos tu audio en modo {a['modo']}. "
-        f"Tu sala se evalúa como {a['sala_descripcion']} (índice {a['sala_indice']}). "
-        f"El ruido de fondo estimado está en torno a {a['ruido_estimado_dbfs']} dBFS. "
-        f"La voz quedó aproximadamente {delta_nivel:+.1f} dB respecto de la grabación original "
-        f"después del procesamiento."
+    delta_nivel = float(a["nivel_final_dbfs"]) - float(a["nivel_original_dbfs"])
+
+    lines = []
+    lines.append(tr(lang, "report.title"))
+    lines.append("")
+    lines.append(f"{tr(lang,'report.file')}: {nombre_original}")
+    lines.append("")
+    lines.append(tr(lang, "report.summary"))
+
+    if lang == "en":
+        lines.append(
+            f"We processed your audio in {modo} mode. "
+            f"Your room is estimated as {sala_desc} (index {a['sala_indice']}). "
+            f"Estimated noise floor is around {a['ruido_estimado_dbfs']} dBFS. "
+            f"After processing, the voice level changed by about {delta_nivel:+.1f} dB compared to the original."
+        )
+    else:
+        lines.append(
+            f"Procesamos tu audio en modo {modo}. "
+            f"Tu sala se evalúa como {sala_desc} (índice {a['sala_indice']}). "
+            f"El ruido de fondo estimado está en torno a {a['ruido_estimado_dbfs']} dBFS. "
+            f"La voz quedó aproximadamente {delta_nivel:+.1f} dB respecto de la grabación original después del procesamiento."
+        )
+
+    lines.append("")
+    lines.append(tr(lang, "report.trim_note"))
+    lines.append("")
+    lines.append(tr(lang, "report.keydata"))
+    lines.append(f"- {tr(lang,'k.mode')}: {modo}")
+    lines.append(f"- {tr(lang,'k.room')}: {sala_desc} (index {a['sala_indice']})" if lang=="en" else f"- {tr(lang,'k.room')}: {sala_desc} (índice {a['sala_indice']})")
+    lines.append(f"- {tr(lang,'k.noise')}: {a['ruido_estimado_dbfs']} dBFS")
+    lines.append(f"- {tr(lang,'k.orig')}: {a['nivel_original_dbfs']} dBFS")
+    lines.append(f"- {tr(lang,'k.final')}: {a['nivel_final_dbfs']} dBFS")
+    lines.append(f"- {tr(lang,'k.snr')}: {a.get('snr_db', 0.0)} dB")
+    lines.append(f"- {tr(lang,'k.peak')}: {a.get('peak_dbfs', 0.0)} dBFS")
+    lines.append(f"- {tr(lang,'k.crest')}: {a.get('crest_factor_db', 0.0)} dB")
+    lines.append(
+        f"- {tr(lang,'k.clip')}: {tr(lang,'clip.prob') if a.get('clip_detectado') else tr(lang,'clip.none')}"
     )
-    lineas.append("")
-    lineas.append(
-        "Como parte del proceso, recortamos automáticamente un pequeño tramo al inicio "
-        "y, cuando el audio es lo suficientemente largo, otro pequeño tramo al final para "
-        "limpiar clics, ruidos de inicio/stop y silencios innecesarios."
+    lines.append(
+        f"- {tr(lang,'k.score')}: {a.get('quality_score','-')} / 100 ({quality_label})"
     )
-    lineas.append("")
+    lines.append("")
+    lines.append(tr(lang, "report.clip_comment"))
+    lines.append(clip_desc)
+    lines.append("")
+    return "\n".join(lines)
 
-    lineas.append("== Datos clave ==")
-    lineas.append(f"- Modo: {a['modo']}")
-    lineas.append(f"- Sala: {a['sala_descripcion']} (índice {a['sala_indice']})")
-    lineas.append(f"- Ruido estimado: {a['ruido_estimado_dbfs']} dBFS")
-    lineas.append(f"- Nivel de voz original: {a['nivel_original_dbfs']} dBFS")
-    lineas.append(f"- Nivel de voz final: {a['nivel_final_dbfs']} dBFS")
-    lineas.append(f"- Relación señal/ruido aproximada: {a.get('snr_db', 0.0)} dB")
-    lineas.append(f"- Pico máximo aproximado: {a.get('peak_dbfs', 0.0)} dBFS")
-    lineas.append(f"- Crest factor aproximado: {a.get('crest_factor_db', 0.0)} dB")
-    lineas.append(
-        f"- Clips / distorsión digital: "
-        f"{'Probables' if a.get('clip_detectado') else 'No se detectan claros indicios'}"
-    )
-    lineas.append(
-        f"- Puntaje de calidad: {a.get('quality_score', '-')} / 100 "
-        f"({a.get('quality_label', '')})"
-    )
-    lineas.append("")
+def analysis_to_html(a: Dict[str, Any], lang: str) -> str:
+    lang = norm_lang(lang)
 
-    lineas.append("== Comentario sobre clipping ==")
-    lineas.append(a.get("clip_descripcion", "Sin datos de clipping."))
-    lineas.append("")
+    modo = a["modo_en"] if lang == "en" else a["modo_es"]
+    sala_desc = a["sala_descripcion_en"] if lang == "en" else a["sala_descripcion_es"]
+    clip_desc = a["clip_descripcion_en"] if lang == "en" else a["clip_descripcion_es"]
+    quality_label = a["quality_label_en"] if lang == "en" else a["quality_label_es"]
 
-    return "\n".join(lineas)
-
-def analysis_to_html(a: Dict[str, Any]) -> str:
-    # HTML súper simple para tu frontend (innerHTML)
     def li(label: str, value: Any) -> str:
         return f"<li><strong>{html_escape(label)}:</strong> {html_escape(str(value))}</li>"
 
     items = []
-    items.append(li("Modo", a.get("modo", "-")))
-    items.append(li("Puntaje", f"{a.get('quality_score','-')} / 100 ({a.get('quality_label','')})"))
-    items.append(li("Sala", f"{a.get('sala_descripcion','-')} (índice {a.get('sala_indice','-')})"))
-    items.append(li("Ruido estimado", f"{a.get('ruido_estimado_dbfs','-')} dBFS"))
-    items.append(li("Nivel original", f"{a.get('nivel_original_dbfs','-')} dBFS"))
-    items.append(li("Nivel final", f"{a.get('nivel_final_dbfs','-')} dBFS"))
-    items.append(li("SNR aprox", f"{a.get('snr_db','-')} dB"))
-    items.append(li("Clipping", "Probable" if a.get("clip_detectado") else "No se detecta claro"))
+    items.append(li(tr(lang, "k.mode"), modo))
+    items.append(li(tr(lang, "k.score"), f"{a.get('quality_score','-')} / 100 ({quality_label})"))
+    items.append(li(tr(lang, "k.room"), f"{sala_desc} (index {a.get('sala_indice','-')})" if lang=="en" else f"{sala_desc} (índice {a.get('sala_indice','-')})"))
+    items.append(li(tr(lang, "k.noise"), f"{a.get('ruido_estimado_dbfs','-')} dBFS"))
+    items.append(li(tr(lang, "k.orig"), f"{a.get('nivel_original_dbfs','-')} dBFS"))
+    items.append(li(tr(lang, "k.final"), f"{a.get('nivel_final_dbfs','-')} dBFS"))
+    items.append(li(tr(lang, "k.snr"), f"{a.get('snr_db','-')} dB"))
+    items.append(li("Clipping", tr(lang, "html.clip_yes") if a.get("clip_detectado") else tr(lang, "html.clip_no")))
 
-    clip_desc = a.get("clip_descripcion")
     clip_html = f"<p style='margin-top:10px; opacity:.9'>{html_escape(str(clip_desc))}</p>" if clip_desc else ""
 
     return (
         "<div class='report-box'>"
-        "<h3 style='margin:0 0 6px 0;'>Resumen</h3>"
+        f"<h3 style='margin:0 0 6px 0;'>{html_escape(tr(lang,'html.title'))}</h3>"
         "<ul class='report-list'>"
         + "".join(items)
         + "</ul>"
@@ -485,22 +611,16 @@ async def _process_impl(
     request: Request,
     background_tasks: BackgroundTasks,
     audio_file: UploadFile,
-    mode: str,
+    mode_raw: str,
+    lang_raw: Optional[str],
 ) -> JSONResponse:
     t0 = time.perf_counter()
+    lang = norm_lang(lang_raw)
 
     raw_bytes = await audio_file.read(MAX_FILE_SIZE_BYTES + 1)
     if len(raw_bytes) > MAX_FILE_SIZE_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                f"El archivo es demasiado pesado. "
-                f"Tamaño máximo permitido: {MAX_FILE_SIZE_MB} MB. "
-                "Prueba subiendo un extracto más corto de tu audio."
-            ),
-        )
+        raise HTTPException(status_code=413, detail=f"Max {MAX_FILE_SIZE_MB} MB")
 
-    # Sanitiza filename
     original_filename = audio_file.filename or "audio"
     original_filename = os.path.basename(original_filename).replace(" ", "_")
     if not original_filename:
@@ -511,25 +631,27 @@ async def _process_impl(
     with original_path.open("wb") as f:
         f.write(raw_bytes)
 
+    # Normaliza modo
+    mode_code = "MICROFONO_EXTERNO" if str(mode_raw).strip() == "MICROFONO_EXTERNO" else "LAPTOP_CELULAR"
+
     try:
-        processed_path, analysis = procesar_audio_core(original_path, mode)
+        processed_path, analysis = procesar_audio_core(original_path, mode_code)
     except Exception as e:
         logger.exception(f"Error procesando audio: {e}")
         raise HTTPException(status_code=400, detail="No se pudo procesar el audio (formato no soportado o falta ffmpeg).")
 
     report_name = f"{processed_path.stem}_report.txt"
     report_path = REPORT_DIR / report_name
-    report_text = construir_informe_texto(safe_name, analysis)
+
+    report_text = construir_informe_texto(safe_name, analysis, lang)
     report_path.write_text(report_text, encoding="utf-8")
 
     processing_ms = int(round((time.perf_counter() - t0) * 1000.0))
 
-    # --- MÉTRICAS (NO ROMPEN FLUJO) ---
     if db_metrics_ready():
         try:
             ip = request.client.host if request.client else None
             ua = request.headers.get("user-agent")
-
             payload = {
                 "id": str(uuid.uuid4()),
                 "mode": analysis.get("modo"),
@@ -551,7 +673,6 @@ async def _process_impl(
                 "sala_indice": float(analysis.get("sala_indice")) if analysis.get("sala_indice") is not None else None,
                 "clip_detectado": bool(analysis.get("clip_detectado")) if analysis.get("clip_detectado") is not None else None,
             }
-
             background_tasks.add_task(record_metrics, payload)
         except Exception as e:
             logger.warning(f"[DB_METRICS] No se pudieron preparar métricas: {e}")
@@ -560,20 +681,22 @@ async def _process_impl(
     processed_url = f"/media/processed/{processed_path.name}"
     report_url = f"/media/reports/{report_name}"
 
-    # Respuesta compatible con tu app.js + futura API
+    analysis_html = analysis_to_html(analysis, lang)
+
     return JSONResponse(
         {
-            # Legacy esperado por tu frontend
+            # Legacy (tu app.js actual)
             "original_audio_url": original_url,
             "processed_audio_url": processed_url,
             "report_url": report_url,
-            "analysis_html": analysis_to_html(analysis),
+            "analysis_html": analysis_html,
 
-            # Keys nuevas / internas (por si las usas después)
+            # Nuevas (por si después migras)
             "original_url": original_url,
             "processed_url": processed_url,
             "original_filename": original_filename,
             "analysis": analysis,
+            "lang": lang,
         }
     )
 
@@ -581,26 +704,26 @@ async def _process_impl(
 #   ENDPOINTS
 # =========================
 
-# Endpoint LEGACY (tu app.js llama a /process con file+modo)
 @app.post("/process")
 async def process_legacy(request: Request, background_tasks: BackgroundTasks):
     form = await request.form()
 
     audio_file = form.get("file") or form.get("audio_file")
     mode = form.get("modo") or form.get("mode") or "LAPTOP_CELULAR"
+    lang = form.get("lang") or form.get("language") or "es"
 
     if audio_file is None or not hasattr(audio_file, "read"):
         raise HTTPException(status_code=422, detail="Falta archivo (file).")
 
-    # `audio_file` viene como UploadFile de Starlette: funciona igual
-    return await _process_impl(request, background_tasks, audio_file, str(mode))
+    return await _process_impl(request, background_tasks, audio_file, str(mode), str(lang))
 
-# Endpoint NUEVO (por si quieres migrar el frontend después)
+
 @app.post("/api/process_audio")
 async def process_audio(
     request: Request,
     background_tasks: BackgroundTasks,
     audio_file: UploadFile = File(...),
     mode: str = Form(...),
+    lang: str = Form("es"),
 ):
-    return await _process_impl(request, background_tasks, audio_file, mode)
+    return await _process_impl(request, background_tasks, audio_file, mode, lang)
