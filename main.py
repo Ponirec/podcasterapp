@@ -591,9 +591,27 @@ def procesar_audio_core(original_path: Path, mode_code: str) -> Tuple[Path, Dict
     # Techo final (seguro)
     audio_proc = apply_ceiling_dbfs(audio_proc, -1.0)
 
+
+
     analisis["nivel_final_dbfs"] = round(
         float(audio_proc.dBFS) if audio_proc.dBFS != float("-inf") else -90.0, 1
     )
+
+    # Peak real del PROCESADO (post techo)
+    analisis["peak_dbfs"] = round(
+        float(audio_proc.max_dBFS) if audio_proc.max_dBFS != float("-inf") else -90.0, 1
+    )
+
+    # Crest factor del PROCESADO (pico - nivel promedio)
+    analisis["crest_factor_db"] = round(
+        float(analisis["peak_dbfs"] - analisis["nivel_final_dbfs"]), 1
+    )
+
+    # Recalcular SOLO el bloque de picos/clipping para que el reporte sea coherente con el procesado
+    a_proc = analizar_audio(audio_proc, original_path=original_path)
+    for k in ("clip_detectado", "hot_signal", "clip_ratio", "clip_code", "clip_descripcion_es", "clip_descripcion_en"):
+        analisis[k] = a_proc[k]
+
 
     # Normaliza modo
     mode_code = "MICROFONO_EXTERNO" if mode_code == "MICROFONO_EXTERNO" else "LAPTOP_CELULAR"
