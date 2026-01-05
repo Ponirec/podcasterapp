@@ -650,36 +650,66 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any], lang: str) 
     delta_nivel = float(a["nivel_final_dbfs"]) - float(a["nivel_original_dbfs"])
     ruido_conf = tr(lang, "conf.ok") if a.get("ruido_confiable", True) else tr(lang, "conf.low")
 
-    # Resumen “humano”
+    # Resumen “humano” (pero NO lo usaremos en el resumen rápido para no saturar)
     cambio_txt_es = "cambio sutil" if abs(delta_nivel) < 1.5 else ("cambio moderado" if abs(delta_nivel) < 5 else "cambio fuerte")
     cambio_txt_en = "subtle change" if abs(delta_nivel) < 1.5 else ("moderate change" if abs(delta_nivel) < 5 else "strong change")
 
+    # Tips principales (cortos)
     if lang == "en":
-        change_line = f"Level change: {delta_nivel:+.1f} dB ({cambio_txt_en})."
         score_line = f"Score: {a.get('quality_score','-')} / 100 — {quality_label}"
-        main_hint_1 = "If you can, record with a bit lower input gain (avoid hot peaks)."
-        main_hint_2 = "Leave 1 second of silence at the start/end to help background estimation."
+        peak_line = f"Safety: max peak ~ {a.get('peak_dbfs', '-')} dBFS"
+        main_hint_1 = "Lower input gain a bit (avoid very hot peaks)."
+        main_hint_2 = "Add 1 second of silence at the start/end for better background estimation."
     else:
-        change_line = f"Cambio de nivel: {delta_nivel:+.1f} dB ({cambio_txt_es})."
         score_line = f"Puntaje: {a.get('quality_score','-')} / 100 — {quality_label}"
-        main_hint_1 = "Si puedes, graba con un poco menos de ganancia (evita picos al límite)."
+        peak_line = f"Seguridad: pico máx. ~ {a.get('peak_dbfs', '-')} dBFS"
+        main_hint_1 = "Baja un poco la ganancia al grabar (evita picos al límite)."
         main_hint_2 = "Deja 1 segundo de silencio al inicio/fin para estimar mejor el fondo."
+
+    # Tips educativos para grabación casera
+    if lang == "en":
+        edu_title = "== Tips to record better at home =="
+        edu = [
+            "Choose a room with soft stuff (curtains, carpet, sofa). Avoid empty rooms.",
+            "Don't face a hard wall. Aim the mic toward a blanket/curtain 30–60 cm away.",
+            "DIY booth: record near a closet full of clothes or hang a blanket behind you.",
+            "Mic distance: 10–15 cm with a pop filter (or 15–20 cm slightly off-axis).",
+            "Reduce noise: turn off fan/AC, close windows, keep the mic away from the laptop.",
+            "Record 5–10 seconds of silence at the start to help noise estimation/cleanup.",
+        ]
+    else:
+        edu_title = "== Tips para grabar mejor en casa =="
+        edu = [
+            "Elige una pieza con cosas blandas (cortinas, alfombra, sofá). Evita piezas vacías.",
+            "No grabes mirando una pared dura. Mejor apunta el mic hacia una manta/cortina a 30–60 cm.",
+            "Cabina casera: graba cerca de un closet con ropa o cuelga una manta detrás tuyo.",
+            "Distancia al mic: 10–15 cm con pop filter (o 15–20 cm y un poco de lado).",
+            "Reduce ruido: apaga ventilador/AC, cierra ventanas, aleja el mic del notebook.",
+            "Graba 5–10 s de “silencio” al inicio para ayudar a estimar el fondo/limpieza.",
+        ]
 
     lines = []
     lines.append(tr(lang, "report.title"))
     lines.append("")
     lines.append(f"{tr(lang,'report.file')}: {nombre_original}")
     lines.append("")
+
+    # ✅ Resumen rápido: 4 líneas máximo
     lines.append(tr(lang, "report.quick"))
     lines.append(f"- {score_line}")
-    lines.append(f"- {change_line}")
-    lines.append(f"- {tr(lang,'k.room')}: {ambiente}")
-    lines.append(f"- {tr(lang,'k.clip')}: {clip_desc}")
-    lines.append(f"- Tip: {main_hint_1}")
-    lines.append(f"- Tip: {main_hint_2}")
+    lines.append(f"- {peak_line}")
+    lines.append(f"- Tip #1: {main_hint_1}")
+    lines.append(f"- Tip #2: {main_hint_2}")
     lines.append("")
-    lines.append(tr(lang, "report.summary"))
 
+    # ✅ Sección educativa (valor real sin llenar el resumen)
+    lines.append(edu_title)
+    for tip in edu:
+        lines.append(f"- {tip}")
+    lines.append("")
+
+    # Resumen general (puede quedar, pero sin sobrecargar arriba)
+    lines.append(tr(lang, "report.summary"))
     if lang == "en":
         lines.append(
             f"We processed your audio in {modo} mode. "
@@ -692,8 +722,8 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any], lang: str) 
             f"Estimación de ambiente: {ambiente}. "
             f"Fondo estimado: {a['ruido_estimado_dbfs']} dBFS (confiabilidad: {ruido_conf})."
         )
-
     lines.append("")
+
     lines.append(tr(lang, "report.trim_note"))
     lines.append("")
 
@@ -714,6 +744,7 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any], lang: str) 
     lines.append(clip_desc)
     lines.append("")
     return "\n".join(lines)
+
 
 def analysis_to_html(a: Dict[str, Any], lang: str) -> str:
     lang = norm_lang(lang)
