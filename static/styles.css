@@ -318,3 +318,19 @@ audio {
   border-color: rgba(74, 222, 128, .8);
   color: #4ade80;
 }
+
+.report-box details {
+  margin-top: 10px;
+  border-top: 1px solid #1f2937;
+  padding-top: 10px;
+}
+
+.report-box summary {
+  cursor: pointer;
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+.report-box details[open] summary {
+  opacity: 1;
+}

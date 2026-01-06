@@ -756,22 +756,61 @@ def analysis_to_html(a: Dict[str, Any], lang: str) -> str:
     ruido_conf = tr(lang, "conf.ok") if a.get("ruido_confiable", True) else tr(lang, "conf.low")
 
     delta_nivel = float(a["nivel_final_dbfs"]) - float(a["nivel_original_dbfs"])
-    cambio_txt = ("sutil" if abs(delta_nivel) < 1.5 else ("moderado" if abs(delta_nivel) < 5 else "fuerte")) if lang=="es" else (
+    cambio_txt = ("sutil" if abs(delta_nivel) < 1.5 else ("moderado" if abs(delta_nivel) < 5 else "fuerte")) if lang == "es" else (
         "subtle" if abs(delta_nivel) < 1.5 else ("moderate" if abs(delta_nivel) < 5 else "strong")
     )
 
     def li(label: str, value: Any) -> str:
         return f"<li><strong>{html_escape(label)}:</strong> {html_escape(str(value))}</li>"
 
+    # ✅ Resumen HTML (compacto)
     items = []
     items.append(li(tr(lang, "k.score"), f"{a.get('quality_score','-')} / 100 — {quality_label}"))
-    items.append(li("Cambio", f"{delta_nivel:+.1f} dB ({cambio_txt})" if lang=="es" else f"{delta_nivel:+.1f} dB ({cambio_txt})"))
     items.append(li(tr(lang, "k.mode"), modo))
     items.append(li(tr(lang, "k.room"), f"{ambiente} (idx {a.get('sala_indice','-')})"))
     items.append(li(tr(lang, "k.noise"), f"{a.get('ruido_estimado_dbfs','-')} dBFS ({ruido_conf})"))
-    items.append(li(tr(lang, "k.orig"), f"{a.get('nivel_original_dbfs','-')} dBFS"))
     items.append(li(tr(lang, "k.final"), f"{a.get('nivel_final_dbfs','-')} dBFS"))
+    items.append(li(tr(lang, "k.peak"), f"{a.get('peak_dbfs','-')} dBFS"))
     items.append(li(tr(lang, "k.clip"), clip_desc))
+    items.append(li("Cambio", f"{delta_nivel:+.1f} dB ({cambio_txt})"))
+
+    # ✅ Tips educativos (colapsables)
+    if lang == "en":
+        tips_title = "Tips to record better at home"
+        tips = [
+            "Choose a room with soft stuff (curtains, carpet, sofa). Avoid empty rooms.",
+            "Don’t face a hard wall. Aim the mic toward a blanket/curtain 30–60 cm away.",
+            "DIY booth: record near a closet full of clothes or hang a blanket behind you.",
+            "Mic distance: 10–15 cm with a pop filter (or 15–20 cm slightly off-axis).",
+            "Reduce noise: turn off fan/AC, close windows, keep the mic away from the laptop.",
+            "Record 5–10 seconds of silence at the start to help background estimation/cleanup.",
+        ]
+        tips_summary = "Show tips"
+    else:
+        tips_title = "Tips para grabar mejor en casa"
+        tips = [
+            "Elige una pieza con cosas blandas (cortinas, alfombra, sofá). Evita piezas vacías.",
+            "No grabes mirando una pared dura. Mejor apunta el mic hacia una manta/cortina a 30–60 cm.",
+            "Cabina casera: graba cerca de un closet con ropa o cuelga una manta detrás tuyo.",
+            "Distancia al mic: 10–15 cm con pop filter (o 15–20 cm y un poco de lado).",
+            "Reduce ruido: apaga ventilador/AC, cierra ventanas, aleja el mic del notebook.",
+            "Graba 5–10 s de “silencio” al inicio para ayudar a estimar el fondo/limpieza.",
+        ]
+        tips_summary = "Ver tips"
+
+    tips_html = (
+        "<details style='margin-top:10px;'>"
+        f"<summary style='cursor:pointer; opacity:.9; font-weight:600;'>{html_escape(tips_summary)} — {html_escape(tips_title)}</summary>"
+        "<ul class='report-list' style='margin-top:8px;'>"
+        + "".join(f"<li>{html_escape(t)}</li>" for t in tips)
+        + "</ul>"
+        "</details>"
+    )
+
+    clip_html = (
+        f"<p style='margin-top:10px; opacity:.9'>{html_escape(str(clip_desc))}</p>"
+        if clip_desc else ""
+    )
 
     return (
         "<div class='report-box'>"
@@ -779,6 +818,8 @@ def analysis_to_html(a: Dict[str, Any], lang: str) -> str:
         "<ul class='report-list'>"
         + "".join(items)
         + "</ul>"
+        + tips_html
+        + clip_html
         + "</div>"
     )
 
