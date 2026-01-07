@@ -749,72 +749,88 @@ def construir_informe_texto(nombre_original: str, a: Dict[str, Any], lang: str) 
 def analysis_to_html(a: Dict[str, Any], lang: str) -> str:
     lang = norm_lang(lang)
 
-    modo = a["modo_en"] if lang == "en" else a["modo_es"]
-    ambiente = a["sala_descripcion_en"] if lang == "en" else a["sala_descripcion_es"]
-    clip_desc = a["clip_descripcion_en"] if lang == "en" else a["clip_descripcion_es"]
-    quality_label = a["quality_label_en"] if lang == "en" else a["quality_label_es"]
-    ruido_conf = tr(lang, "conf.ok") if a.get("ruido_confiable", True) else tr(lang, "conf.low")
+    modo = a.get("modo_en") if lang == "en" else a.get("modo_es")
+    modo = modo or a.get("modo", "-")
 
-    delta_nivel = float(a["nivel_final_dbfs"]) - float(a["nivel_original_dbfs"])
-    cambio_txt = ("sutil" if abs(delta_nivel) < 1.5 else ("moderado" if abs(delta_nivel) < 5 else "fuerte")) if lang == "es" else (
-        "subtle" if abs(delta_nivel) < 1.5 else ("moderate" if abs(delta_nivel) < 5 else "strong")
-    )
+    quality_label = a.get("quality_label_en") if lang == "en" else a.get("quality_label_es")
+    quality_label = quality_label or a.get("quality_label", "-")
+
+    score = a.get("quality_score", "-")
+    peak = a.get("peak_dbfs", "-")
+    clip_detectado = bool(a.get("clip_detectado", False))
+    hot_signal = bool(a.get("hot_signal", False))
 
     def li(label: str, value: Any) -> str:
         return f"<li><strong>{html_escape(label)}:</strong> {html_escape(str(value))}</li>"
 
-    # ✅ Resumen HTML (compacto)
-    items = []
-    items.append(li(tr(lang, "k.score"), f"{a.get('quality_score','-')} / 100 — {quality_label}"))
-    items.append(li(tr(lang, "k.mode"), modo))
-    items.append(li(tr(lang, "k.room"), f"{ambiente} (idx {a.get('sala_indice','-')})"))
-    items.append(li(tr(lang, "k.noise"), f"{a.get('ruido_estimado_dbfs','-')} dBFS ({ruido_conf})"))
-    items.append(li(tr(lang, "k.final"), f"{a.get('nivel_final_dbfs','-')} dBFS"))
-    items.append(li(tr(lang, "k.peak"), f"{a.get('peak_dbfs','-')} dBFS"))
-    items.append(li(tr(lang, "k.clip"), clip_desc))
-    items.append(li("Cambio", f"{delta_nivel:+.1f} dB ({cambio_txt})"))
-
-    # ✅ Tips educativos (colapsables)
+    # -------------------------
+    # Tips educativos (arriba y abiertos)
+    # -------------------------
     if lang == "en":
         tips_title = "Tips to record better at home"
+        tips_summary = "Show tips"
         tips = [
             "Choose a room with soft stuff (curtains, carpet, sofa). Avoid empty rooms.",
             "Don’t face a hard wall. Aim the mic toward a blanket/curtain 30–60 cm away.",
             "DIY booth: record near a closet full of clothes or hang a blanket behind you.",
             "Mic distance: 10–15 cm with a pop filter (or 15–20 cm slightly off-axis).",
             "Reduce noise: turn off fan/AC, close windows, keep the mic away from the laptop.",
-            "Record 5–10 seconds of silence at the start to help background estimation/cleanup.",
+            "Record 5–10 seconds of silence at the start to help cleanup and estimation.",
         ]
-        tips_summary = "Show tips"
     else:
         tips_title = "Tips para grabar mejor en casa"
+        tips_summary = "Ver tips"
         tips = [
             "Elige una pieza con cosas blandas (cortinas, alfombra, sofá). Evita piezas vacías.",
             "No grabes mirando una pared dura. Mejor apunta el mic hacia una manta/cortina a 30–60 cm.",
             "Cabina casera: graba cerca de un closet con ropa o cuelga una manta detrás tuyo.",
             "Distancia al mic: 10–15 cm con pop filter (o 15–20 cm y un poco de lado).",
             "Reduce ruido: apaga ventilador/AC, cierra ventanas, aleja el mic del notebook.",
-            "Graba 5–10 s de “silencio” al inicio para ayudar a estimar el fondo/limpieza.",
+            "Graba 5–10 s de “silencio” al inicio para ayudar a limpieza/estimación del fondo.",
         ]
-        tips_summary = "Ver tips"
 
     tips_html = (
-        "<details style='margin-top:10px;'>"
-        f"<summary style='cursor:pointer; opacity:.9; font-weight:600;'>{html_escape(tips_summary)} — {html_escape(tips_title)}</summary>"
-        "<ul class='report-list' style='margin-top:8px;'>"
+        "<details open style='margin-top:10px;'>"
+        f"<summary style='cursor:pointer; opacity:.95; font-weight:700;'>"
+        f"{html_escape(tips_summary)} — {html_escape(tips_title)}"
+        f"</summary>"
+        "<ul class='report-list' style='margin-top:10px;'>"
         + "".join(f"<li>{html_escape(t)}</li>" for t in tips)
         + "</ul>"
         "</details>"
     )
 
+    # -------------------------
+    # Resumen mínimo (3 líneas)
+    # -------------------------
+    items = []
+    items.append(li(tr(lang, "k.score"), f"{score} / 100 — {quality_label}"))
+    items.append(li(tr(lang, "k.mode"), modo))
+
+    if lang == "en":
+        if clip_detectado or hot_signal:
+            status = f"Peak ~ {peak} dBFS. Risk of clipping: lower input gain."
+        else:
+            status = f"Peak ~ {peak} dBFS. No clear clipping detected."
+        status_label = "Status"
+    else:
+        if clip_detectado or hot_signal:
+            status = f"Pico ~ {peak} dBFS. Riesgo de clipping: baja la ganancia."
+        else:
+            status = f"Pico ~ {peak} dBFS. No se detecta clipping claro."
+        status_label = "Estado"
+
+    items.append(li(status_label, status))
+
     return (
         "<div class='report-box'>"
         f"<h3 style='margin:0 0 6px 0;'>{html_escape(tr(lang,'html.title'))}</h3>"
-        "<ul class='report-list'>"
+        + tips_html
+        +"<h4 style='margin:14px 0 6px 0; opacity:.9;'>Resumen</h4>"
+        +"<ul class='report-list'>"
         + "".join(items)
         + "</ul>"
-        + tips_html
-        + "</div>"
+        +"</div>"
     )
 
 # =========================
