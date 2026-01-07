@@ -807,11 +807,6 @@ def analysis_to_html(a: Dict[str, Any], lang: str) -> str:
         "</details>"
     )
 
-    clip_html = (
-        f"<p style='margin-top:10px; opacity:.9'>{html_escape(str(clip_desc))}</p>"
-        if clip_desc else ""
-    )
-
     return (
         "<div class='report-box'>"
         f"<h3 style='margin:0 0 6px 0;'>{html_escape(tr(lang,'html.title'))}</h3>"
@@ -819,7 +814,6 @@ def analysis_to_html(a: Dict[str, Any], lang: str) -> str:
         + "".join(items)
         + "</ul>"
         + tips_html
-        + clip_html
         + "</div>"
     )
 
