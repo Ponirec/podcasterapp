@@ -824,14 +824,17 @@ def analysis_to_html(a: Dict[str, Any], lang: str) -> str:
 
     return (
         "<div class='report-box'>"
-        f"<h3 style='margin:0 0 6px 0;'>{html_escape(tr(lang,'html.title'))}</h3>"
+        + (f"<h3 style='margin:0 0 6px 0;'>Tips</h3>" if lang == "es"
+        else f"<h3 style='margin:0 0 6px 0;'>Tips</h3>")
         + tips_html
-        +"<h4 style='margin:14px 0 6px 0; opacity:.9;'>Resumen</h4>"
-        +"<ul class='report-list'>"
+        + ("<h4 style='margin:14px 0 6px 0; opacity:.9;'>Resumen informe</h4>" if lang == "es"
+        else "<h4 style='margin:14px 0 6px 0; opacity:.9;'>Report summary</h4>")
+        + "<ul class='report-list'>"
         + "".join(items)
         + "</ul>"
-        +"</div>"
+        + "</div>"
     )
+
 
 # =========================
 #   ENDPOINT IMPLEMENTATION
